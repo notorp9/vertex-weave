@@ -15,3 +15,7 @@ python3 build.py   # index.html を生成
 - `src/logic.js` ルール・得点・CPU
 - `src/ui.js` 画面と操作
 - `src/template.html` CSS と画面の骨組み
+
+## ライセンス
+
+[MIT License](LICENSE)
