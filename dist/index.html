@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tutti Quantum 標準模型拡張版</title>
+<style>
+:root{
+  color-scheme: light;
+  --bg:#e8edeb; --surface:#f7f9f8; --ink:#1a2a28; --muted:#5a6e6a; --line:#c3cfcb; --accent:#1d6f5b;
+  --quark:#bd3f78; --lepton:#1d8858; --nu:#4f78a6; --gamma:#a97d00; --gluon:#cc5f17; --W:#c4352b; --Z:#2868c0; --H:#8641c4;
+  --ok:#2a9468; --ng:#cf4338; --warn:#d8981a; --on-badge:#ffffff;
+  --serif:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP","Times New Roman",serif;
+  --sans:"BIZ UDPGothic","Hiragino Sans","Yu Gothic UI","Noto Sans JP",system-ui,-apple-system,"Segoe UI",sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --bg:#121c1a; --surface:#1c2a27; --ink:#e7eee9; --muted:#97aba5; --line:#33504a; --accent:#7fd8bb;
+    --quark:#f29cb5; --lepton:#8fe0b0; --nu:#a9c7e8; --gamma:#f5d76e; --gluon:#f4a261; --W:#ef7d6f; --Z:#6fb1f2; --H:#c9a0f0;
+    --ok:#62d3a2; --ng:#f0857b; --warn:#f0c15a; --on-badge:#10201c;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --bg:#121c1a; --surface:#1c2a27; --ink:#e7eee9; --muted:#97aba5; --line:#33504a; --accent:#7fd8bb;
+  --quark:#f29cb5; --lepton:#8fe0b0; --nu:#a9c7e8; --gamma:#f5d76e; --gluon:#f4a261; --W:#ef7d6f; --Z:#6fb1f2; --H:#c9a0f0;
+  --ok:#62d3a2; --ng:#f0857b; --warn:#f0c15a; --on-badge:#10201c;
+}
+*,*::before,*::after{box-sizing:inherit}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.6;-webkit-text-size-adjust:100%}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,.cand:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.c-quark{--c:var(--quark)} .c-lepton{--c:var(--lepton)} .c-nu{--c:var(--nu)} .c-gamma{--c:var(--gamma)}
+.c-gluon{--c:var(--gluon)} .c-W{--c:var(--W)} .c-Z{--c:var(--Z)} .c-H{--c:var(--H)}
+
+.wrap{max-width:1040px;margin:0 auto;padding:14px 14px 40px}
+header.top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+h1{font-family:var(--serif);font-size:21px;line-height:1.25;margin:0;font-weight:700;letter-spacing:.02em}
+h1 small{display:block;font-family:var(--sans);font-size:12px;font-weight:400;color:var(--muted);letter-spacing:0}
+.tools{display:flex;gap:8px;flex-shrink:0}
+.btn{border:1.5px solid var(--line);background:var(--surface);padding:7px 13px;border-radius:8px;font-size:14px}
+.btn:hover{border-color:var(--accent)}
+.btn.main{background:var(--accent);border-color:var(--accent);color:var(--bg);font-weight:700}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* セットアップ */
+#setup .panel{max-width:560px;margin:18px auto 0;background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:22px 20px}
+#setup h2{font-family:var(--serif);font-size:18px;margin:0 0 4px}
+#setup .lead{margin:0 0 18px;color:var(--muted);font-size:14px}
+.field{margin-bottom:18px}
+.lab{font-size:13px;font-weight:700;margin-bottom:6px}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{flex:1 1 auto;min-width:88px;border:1.5px solid var(--line);background:transparent;padding:8px 10px;border-radius:8px;font-size:14px}
+.seg button.on{background:var(--accent);border-color:var(--accent);color:var(--bg);font-weight:700}
+.hint{margin:7px 0 0;font-size:13px;color:var(--muted)}
+#start{width:100%;padding:12px;font-size:16px}
+
+/* ゲーム */
+#game{display:grid;gap:12px;grid-template-columns:minmax(0,1fr);grid-template-areas:"bar" "market" "board" "ctrl" "info"}
+@media (min-width:900px){
+  #game{grid-template-columns:minmax(0,1fr) 330px;grid-template-areas:"board bar" "board market" "board ctrl" "board info";align-items:start}
+}
+.box{background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:10px 12px}
+#bar{grid-area:bar}
+.barhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px}
+#round{font-family:var(--serif);font-weight:700;font-size:16px}
+#deck{font-size:13px;color:var(--muted)}
+#chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:flex;align-items:baseline;gap:7px;border:1.5px solid var(--line);background:transparent;border-radius:8px;padding:5px 10px;font-size:13px}
+.chip .sc{font-family:var(--serif);font-weight:700;font-size:17px;font-variant-numeric:tabular-nums}
+.chip .ct{color:var(--muted);font-size:12px}
+.chip.view{border-color:var(--ink)}
+.chip.turn{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.chip.turn .ct{color:inherit;opacity:.8}
+#msg{margin:9px 0 0;font-size:13.5px;min-height:1.6em}
+
+#market{grid-area:market;display:flex;flex-wrap:wrap;gap:8px;align-items:stretch}
+.mlab{width:100%;font-size:13px;font-weight:700}
+.pc{width:calc(33.3% - 6px);min-width:78px;max-width:104px;flex:1 1 78px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:10px 4px 8px;border:2px solid var(--line);background:var(--surface);border-radius:10px;border-top:5px solid var(--c)}
+.pc .sym{font-family:var(--serif);font-style:italic;font-size:28px;line-height:1.1;color:var(--c);font-weight:700}
+.pc .jp{font-size:11px;color:var(--muted);text-align:center;line-height:1.3}
+.pc.sel{box-shadow:inset 0 0 0 2px var(--c);border-color:var(--c)}
+.pc:disabled{opacity:.55;cursor:default}
+
+#boardbox{grid-area:board;padding:8px 8px 6px}
+#viewname{font-size:13px;color:var(--muted);margin:0 4px 4px}
+#board{display:block;width:100%;height:clamp(300px,58vh,600px);touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.ln{fill:none;stroke:var(--c);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.ar{fill:var(--c)}
+.bub circle{fill:var(--surface);stroke:var(--c);stroke-width:2.5}
+.bub text{font-family:var(--serif);font-style:italic;font-weight:700;font-size:14px;fill:var(--ink)}
+.ghost{opacity:.6}
+.nd{fill:var(--muted);opacity:.7}
+.loop{fill:var(--accent);opacity:.13}
+.cand{cursor:pointer}
+.cand line{stroke:var(--accent);stroke-width:3;stroke-dasharray:3 8;stroke-linecap:round;opacity:.65}
+.cand circle{fill:var(--accent);opacity:.75}
+.cand .hit{stroke:transparent;stroke-width:28;stroke-dasharray:none;opacity:1;pointer-events:stroke}
+.cand.on line{opacity:1;stroke-dasharray:none}
+.badge{cursor:pointer}
+.badge text{font-size:11px;font-weight:700;fill:var(--on-badge)}
+.badge.ok circle{fill:var(--ok)}
+.badge.ng circle{fill:var(--ng)}
+.badge.op circle{fill:var(--surface);stroke:var(--muted);stroke-width:1.5}
+.badge.op text{fill:var(--muted)}
+.badge.dead circle{fill:var(--warn)}
+.badge.dead text{fill:#2a1e00}
+.badge.pick circle{stroke:var(--ink);stroke-width:2.5}
+
+#controls{grid-area:ctrl;display:flex;gap:8px}
+#controls .btn{flex:1;padding:11px}
+#info{grid-area:info;font-size:13.5px}
+#info p{margin:0 0 6px}
+#info .ih{font-family:var(--serif);font-weight:700;font-size:16px;margin-bottom:4px}
+#info .good{color:var(--ok);font-weight:700}
+#info .bad{color:var(--ng)}
+.muted{color:var(--muted)}
+
+/* 結果 */
+#over{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;justify-content:center;align-items:center;background:color-mix(in srgb,var(--bg) 88%,transparent);padding:20px;overflow:auto}
+#over>*{width:100%;max-width:520px}
+#over h2{font-family:var(--serif);font-size:24px;margin:0 0 12px;text-align:center}
+.rank{display:grid;gap:8px;margin-bottom:14px}
+.rrow{display:grid;grid-template-columns:1fr auto;gap:2px 10px;text-align:left;border:1.5px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 12px}
+.rrow.top{border-color:var(--accent);border-width:2.5px}
+.rrow .rn{font-weight:700}
+.rrow .rs{font-family:var(--serif);font-weight:700;font-size:20px}
+.rrow .rd,.rrow .rm{grid-column:1/3;font-size:12.5px;color:var(--muted)}
+.rrow .rm{color:var(--ink)}
+#over .row{display:flex;gap:8px}
+#over .row .btn{flex:1;padding:11px}
+
+/* ガイド */
+#guide{position:fixed;inset:0;z-index:30;background:color-mix(in srgb,var(--ink) 45%,transparent);display:flex;align-items:flex-end;justify-content:center}
+#guide .sheet{background:var(--surface);width:100%;max-width:720px;max-height:90vh;border-radius:14px 14px 0 0;display:flex;flex-direction:column;border:1.5px solid var(--line)}
+@media (min-width:720px){#guide{align-items:center}#guide .sheet{border-radius:14px;max-height:86vh}}
+#guide header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1.5px solid var(--line)}
+#guide header b{font-family:var(--serif);font-size:17px}
+#guide-body{overflow:auto;padding:4px 16px 24px;font-size:14px}
+#guide-body h3{font-family:var(--serif);font-size:16px;margin:20px 0 6px}
+#guide-body ol,#guide-body ul{padding-left:20px;margin:6px 0}
+#guide-body li{margin-bottom:5px}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border-bottom:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}
+table.ckm td,table.ckm th{text-align:center}
+.mini{display:inline-block;min-width:26px;text-align:center;font-family:var(--serif);font-style:italic;font-weight:700;color:var(--c)}
+.note{font-size:13px;color:var(--muted)}
+@media (prefers-reduced-motion:no-preference){.pc,.chip,.btn{transition:border-color .12s,background .12s}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Tutti Quantum<small>標準模型拡張版(非公式プロトタイプ)</small></h1>
+    <div class="tools">
+      <button class="btn" id="guide-open" type="button">ルール・図鑑</button>
+      <button class="btn" id="new" type="button">設定へ</button>
+    </div>
+  </header>
+
+  <section id="setup">
+    <div class="panel">
+      <h2>ファインマン図を組み立てる</h2>
+      <p class="lead">粒子カードをつなげて、標準模型で許される頂点をできるだけ多く作ります。</p>
+      <div id="setup-body"></div>
+      <button class="btn main" id="start" type="button">ゲームを始める</button>
+    </div>
+  </section>
+
+  <section id="game" hidden>
+    <div id="bar" class="box">
+      <div class="barhead"><span id="round"></span><span id="deck"></span></div>
+      <div id="chips"></div>
+      <p id="msg" role="status"></p>
+    </div>
+    <div id="market" class="box"></div>
+    <div id="boardbox" class="box">
+      <p id="viewname"></p>
+      <svg id="board" viewBox="0 0 480 360" preserveAspectRatio="xMidYMid meet" role="img" aria-label="ファインマン図の盤面"></svg>
+    </div>
+    <div id="controls">
+      <button class="btn" id="hint" type="button" hidden>おすすめ</button>
+      <button class="btn" id="flip" type="button" hidden>矢印を反転</button>
+      <button class="btn main" id="ok" type="button" disabled>ここに貼る</button>
+    </div>
+    <div id="info" class="box"></div>
+  </section>
+</div>
+
+<div id="over" hidden></div>
+
+<div id="guide" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="ルールと図鑑">
+    <header><b>ルール・図鑑</b><button class="btn" id="guide-close" type="button">閉じる</button></header>
+    <div id="guide-body"></div>
+  </div>
+</div>
+
+<script>
+const TQ = (function () {
+'use strict';
+
+/* ------------------------------------------------------------------ */
+/*  粒子データ                                                          */
+/*  Q は電気素量 e の 1/3 を単位とした整数 (u=+2, d=-1, e=-3, ν=0)        */
+/* ------------------------------------------------------------------ */
+const FERMIONS = [
+  { id:'u',  sym:'u',  jp:'アップクォーク',     en:'up',       type:'quark',  up:true,  gen:1, Q:2,  mass:'2.2 MeV' },
+  { id:'d',  sym:'d',  jp:'ダウンクォーク',     en:'down',     type:'quark',  up:false, gen:1, Q:-1, mass:'4.7 MeV' },
+  { id:'c',  sym:'c',  jp:'チャームクォーク',   en:'charm',    type:'quark',  up:true,  gen:2, Q:2,  mass:'1.27 GeV' },
+  { id:'s',  sym:'s',  jp:'ストレンジクォーク', en:'strange',  type:'quark',  up:false, gen:2, Q:-1, mass:'93 MeV' },
+  { id:'t',  sym:'t',  jp:'トップクォーク',     en:'top',      type:'quark',  up:true,  gen:3, Q:2,  mass:'172.6 GeV' },
+  { id:'b',  sym:'b',  jp:'ボトムクォーク',     en:'bottom',   type:'quark',  up:false, gen:3, Q:-1, mass:'4.18 GeV' },
+  { id:'e',  sym:'e',  jp:'電子',               en:'electron', type:'lepton', gen:1, Q:-3, mass:'0.511 MeV' },
+  { id:'mu', sym:'μ',  jp:'ミューオン',         en:'muon',     type:'lepton', gen:2, Q:-3, mass:'105.7 MeV' },
+  { id:'tau',sym:'τ',  jp:'タウ',               en:'tau',      type:'lepton', gen:3, Q:-3, mass:'1.777 GeV' },
+  { id:'ve', sym:'νe', jp:'電子ニュートリノ',   en:'ν_e',      type:'nu',     gen:1, Q:0,  mass:'< 1 eV' },
+  { id:'vm', sym:'νμ', jp:'ミューニュートリノ', en:'ν_μ',      type:'nu',     gen:2, Q:0,  mass:'< 1 eV' },
+  { id:'vt', sym:'ντ', jp:'タウニュートリノ',   en:'ν_τ',      type:'nu',     gen:3, Q:0,  mass:'< 1 eV' }
+].map(f => Object.assign({ kind:'f', spin:'1/2' }, f));
+
+const BOSONS = [
+  { id:'gamma', kind:'γ', sym:'γ', jp:'光子',           en:'photon', Q:0, mass:'0',        spin:'1' },
+  { id:'gluon', kind:'g', sym:'g', jp:'グルーオン',     en:'gluon',  Q:0, mass:'0',        spin:'1' },
+  { id:'W',     kind:'W', sym:'W', jp:'Wボソン',        en:'W',      Q:3, mass:'80.4 GeV', spin:'1' },
+  { id:'Z',     kind:'Z', sym:'Z', jp:'Zボソン',        en:'Z',      Q:0, mass:'91.19 GeV',spin:'1' },
+  { id:'H',     kind:'H', sym:'H', jp:'ヒッグス粒子',   en:'Higgs',  Q:0, mass:'125.2 GeV',spin:'0' }
+];
+
+const PARTICLES = FERMIONS.concat(BOSONS);
+const BY_ID = {}; PARTICLES.forEach(p => { BY_ID[p.id] = p; });
+
+const isDirected = p => p.kind === 'f' || p.kind === 'W';
+
+/* ------------------------------------------------------------------ */
+/*  モード                                                              */
+/* ------------------------------------------------------------------ */
+const MODES = {
+  basic: {
+    label: '入門(第1世代)',
+    desc: 'u, d, e, νe とすべてのボソン。弱い相互作用まで体験できます。',
+    fermions: ['u','d','e','ve'],
+    deck: { fermion: 4, gamma: 7, gluon: 7, W: 8, Z: 6, H: 4 }
+  },
+  full: {
+    label: 'フル(3世代・全結合)',
+    desc: '6クォーク・3荷電レプトン・3ニュートリノ。CKM混合・湯川結合・ループ結合まで含みます。',
+    fermions: ['u','d','c','s','t','b','e','mu','tau','ve','vm','vt'],
+    deck: { fermion: 3, gamma: 6, gluon: 8, W: 9, Z: 7, H: 5 }
+  }
+};
+
+function universe(modeKey) {
+  const m = MODES[modeKey];
+  return m.fermions.map(id => BY_ID[id]).concat(BOSONS);
+}
+
+const _endsCache = {};
+function candidateEnds(modeKey) {
+  if (_endsCache[modeKey]) return _endsCache[modeKey];
+  const out = [];
+  universe(modeKey).forEach(p => {
+    if (isDirected(p)) { out.push({ p, io: 1 }); out.push({ p, io: -1 }); }
+    else out.push({ p, io: 0 });
+  });
+  return (_endsCache[modeKey] = out);
+}
+
+/* ------------------------------------------------------------------ */
+/*  頂点の規則と得点                                                    */
+/* ------------------------------------------------------------------ */
+// |V_ij| の大きさに応じた得点 (小さいほど稀なので高得点)
+const CKM_PTS = { ud:3, us:4, ub:6, cd:4, cs:3, cb:5, td:6, ts:5, tb:3 };
+const CKM_VAL = { ud:'0.974', us:'0.225', ub:'0.0037', cd:'0.221', cs:'0.975', cb:'0.041', td:'0.0086', ts:'0.040', tb:'1.0' };
+// ヒッグスと各フェルミオンの結合 (質量に比例) — 弱く結合するほど稀 = 高得点
+const YUKAWA_PTS = { t:2, b:3, tau:3, c:4, s:4, mu:4, d:5, u:5, e:5 };
+
+const TAG_LABEL = {
+  'ffγ': '電磁結合',
+  'ffg': '強い相互作用',
+  'ffZ': 'Z結合(中性カレント)',
+  'ffW': 'W結合(荷電カレント)',
+  'ffH': '湯川結合',
+  'ggg': 'グルーオン自己結合',
+  'WWγ': 'WWγ(ゲージ自己結合)',
+  'WWZ': 'WWZ(ゲージ自己結合)',
+  'HWW': 'ヒッグス–W結合',
+  'HZZ': 'ヒッグス–Z結合',
+  'HHH': 'ヒッグス3点自己結合',
+  'Hγγ': 'H→γγ(ループ)',
+  'Hgg': 'H→gg(ループ)',
+  'HZγ': 'H→Zγ(ループ)',
+  'gggg': 'グルーオン4点結合',
+  'WWWW': 'WWWW(4点結合)',
+  'WWγγ': 'WWγγ(4点結合)',
+  'WWγZ': 'WWγZ(4点結合)',
+  'WWZZ': 'WWZZ(4点結合)',
+  'HHWW': 'HHWW(4点結合)',
+  'HHZZ': 'HHZZ(4点結合)',
+  'HHHH': 'ヒッグス4点自己結合'
+};
+
+function chargeIn(e) {
+  if (e.p.kind === 'f') return e.io * e.p.Q;
+  if (e.p.kind === 'W') return e.io * -3; // 矢印は負電荷の流れ
+  return 0;
+}
+
+const BAD = (why) => ({ ok: false, pts: -1, tag: null, why });
+
+function validateVertex(ends) {
+  const kinds = ends.map(e => e.p.kind);
+  const count = k => kinds.filter(x => x === k).length;
+  const ferm = ends.filter(e => e.p.kind === 'f');
+  const chargeSum = ends.reduce((s, e) => s + chargeIn(e), 0);
+
+  if (ends.length === 4) {
+    if (ferm.length) return BAD('標準模型には、フェルミオンを含む4点結合はありません。');
+    if (chargeSum !== 0) return BAD('電荷が保存されていません。Wの矢印は2本が入り、2本が出る向きにします。');
+    const g4 = count('g'), W4 = count('W'), Z4 = count('Z'), H4 = count('H'), A4 = count('γ');
+    if (g4 === 4) return { ok: true, pts: 4, tag: 'gggg', why: '' };
+    if (W4 === 4) return { ok: true, pts: 6, tag: 'WWWW', why: '' };
+    if (W4 === 2 && A4 === 2) return { ok: true, pts: 6, tag: 'WWγγ', why: '' };
+    if (W4 === 2 && A4 === 1 && Z4 === 1) return { ok: true, pts: 6, tag: 'WWγZ', why: '' };
+    if (W4 === 2 && Z4 === 2) return { ok: true, pts: 6, tag: 'WWZZ', why: '' };
+    if (W4 === 2 && H4 === 2) return { ok: true, pts: 6, tag: 'HHWW', why: '' };
+    if (Z4 === 2 && H4 === 2) return { ok: true, pts: 6, tag: 'HHZZ', why: '' };
+    if (H4 === 4) return { ok: true, pts: 7, tag: 'HHHH', why: '' };
+    return BAD('標準模型に存在しない4点結合です。');
+  }
+
+  if (ferm.length === 2) {
+    const [a, b] = ferm;
+    if (a.io === b.io) return BAD('フェルミオンの矢印が頂点で連続していません(1本は入り、1本は出る必要があります)。');
+    const x = ends.find(e => e.p.kind !== 'f');
+    const k = x.p.kind;
+    if (k === 'W') {
+      if (chargeSum !== 0) return BAD('電荷が保存されていません。Wの矢印の向きを確認してください(負電荷が流れる向きを示します)。');
+      const pa = a.p, pb = b.p;
+      // レプトン: 同じ世代の 荷電レプトン + ニュートリノ
+      if ((pa.type === 'lepton' && pb.type === 'nu') || (pa.type === 'nu' && pb.type === 'lepton')) {
+        if (pa.gen !== pb.gen) return BAD('Wはレプトンの世代をまたげません(ℓ と同じ世代のνだけ)。');
+        return { ok: true, pts: 3, tag: 'ffW', why: '' };
+      }
+      if (pa.type === 'quark' && pb.type === 'quark' && pa.up !== pb.up) {
+        const up = pa.up ? pa : pb, dn = pa.up ? pb : pa;
+        return { ok: true, pts: CKM_PTS[up.id + dn.id], tag: 'ffW', why: '', ckm: CKM_VAL[up.id + dn.id] };
+      }
+      return BAD('Wが結びつけるのは「荷電レプトンとν」か「アップ型とダウン型のクォーク」の組だけです。');
+    }
+    if (a.p.id !== b.p.id) return BAD('この粒子は種類(フレーバー)を変えません。同じフェルミオンの線が続く必要があります。');
+    const f = a.p;
+    if (k === 'γ') {
+      if (f.Q === 0) return BAD('光子は電荷を持たないニュートリノには結合しません。');
+      return { ok: true, pts: 2, tag: 'ffγ', why: '' };
+    }
+    if (k === 'g') {
+      if (f.type !== 'quark') return BAD('グルーオンはクォークだけに結合します(色荷を持つのはクォークとグルーオン)。');
+      return { ok: true, pts: 2, tag: 'ffg', why: '' };
+    }
+    if (k === 'Z') {
+      return { ok: true, pts: f.type === 'nu' ? 3 : 2, tag: 'ffZ', why: '' };
+    }
+    if (k === 'H') {
+      if (f.type === 'nu') return BAD('標準模型ではニュートリノはヒッグスと結合しません(質量が0の扱い)。');
+      return { ok: true, pts: YUKAWA_PTS[f.id], tag: 'ffH', why: '' };
+    }
+    return BAD('標準模型に存在しない結合です。');
+  }
+
+  if (ferm.length !== 0) return BAD('標準模型に存在しない結合です。');
+
+  if (chargeSum !== 0) return BAD('電荷が保存されていません。2本のWの矢印は逆向き(1本が入り1本が出る)にします。');
+  const g = count('g'), W = count('W'), Z = count('Z'), H = count('H'), A = count('γ');
+  if (g === 3) return { ok: true, pts: 3, tag: 'ggg', why: '' };
+  if (W === 2 && A === 1) return { ok: true, pts: 4, tag: 'WWγ', why: '' };
+  if (W === 2 && Z === 1) return { ok: true, pts: 4, tag: 'WWZ', why: '' };
+  if (W === 2 && H === 1) return { ok: true, pts: 5, tag: 'HWW', why: '' };
+  if (Z === 2 && H === 1) return { ok: true, pts: 5, tag: 'HZZ', why: '' };
+  if (H === 3) return { ok: true, pts: 6, tag: 'HHH', why: '' };
+  if (H === 1 && A === 2) return { ok: true, pts: 6, tag: 'Hγγ', why: '' };
+  if (H === 1 && g === 2) return { ok: true, pts: 5, tag: 'Hgg', why: '' };
+  if (H === 1 && Z === 1 && A === 1) return { ok: true, pts: 6, tag: 'HZγ', why: '' };
+  return BAD('標準模型に存在しない結合です。');
+}
+
+const _extCache = new Map();
+function endsKey(ends) { return ends.map(e => e.p.id + ':' + e.io).sort().join(','); }
+// 線をあと1〜2本足して(4点モードでは最大4本まで)有効な頂点にできるか
+function canExtend(ends, modeKey, q) {
+  const key = modeKey + (q ? 'q' : 'c') + '|' + endsKey(ends);
+  if (_extCache.has(key)) return _extCache.get(key);
+  const cand = candidateEnds(modeKey), max = q ? 4 : 3;
+  let ok = false;
+  for (let i = 0; i < cand.length && !ok; i++) {
+    const ne = ends.concat([cand[i]]);
+    if (ne.length >= 3 && validateVertex(ne).ok) ok = true;
+    else if (ne.length < max && canExtend(ne, modeKey, q)) ok = true;
+  }
+  _extCache.set(key, ok);
+  return ok;
+}
+function completable(ends, modeKey, q) { return canExtend(ends, modeKey, !!q); }
+
+/* ------------------------------------------------------------------ */
+/*  蜂の巣格子 (ブリックウォール表現)                                    */
+/*  ノード (i,j): (i±1,j) と、(i+j)が偶数なら(i,j+1)、奇数なら(i,j-1)    */
+/* ------------------------------------------------------------------ */
+const SQ3_2 = Math.sqrt(3) / 2;
+const nk = (i, j) => i + ',' + j;
+const parseNode = k => k.split(',').map(Number);
+function neighbors(key, q) {
+  const [i, j] = parseNode(key);
+  if (q) return [nk(i + 1, j), nk(i - 1, j), nk(i, j + 1), nk(i, j - 1)];
+  const v = ((i + j) % 2 + 2) % 2 === 0 ? nk(i, j + 1) : nk(i, j - 1);
+  return [nk(i + 1, j), nk(i - 1, j), v];
+}
+function edgeKey(a, b) { return a < b ? a + '|' + b : b + '|' + a; }
+function splitEdge(k) { return k.split('|'); }
+function nodePos(key, L, q) {
+  const [i, j] = parseNode(key);
+  if (q) return { x: i * L, y: j * L };
+  const even = ((i + j) % 2 + 2) % 2 === 0;
+  const y = 1.5 * j + (even ? 0 : -0.5);
+  return { x: i * SQ3_2 * L, y: y * L };
+}
+
+function buildNodes(cards) {
+  const m = new Map();
+  const add = (n, e) => { if (!m.has(n)) m.set(n, []); m.get(n).push(e); };
+  cards.forEach(c => {
+    const d = isDirected(c.p);
+    add(c.a, { p: c.p, io: d ? (c.dir === 1 ? -1 : 1) : 0, card: c });
+    add(c.b, { p: c.p, io: d ? (c.dir === 1 ? 1 : -1) : 0, card: c });
+  });
+  return m;
+}
+
+function candidateEdges(cards, q) {
+  if (!cards.length) {
+    return neighbors('0,0', q).map(n => edgeKey('0,0', n));
+  }
+  const occ = new Set(cards.map(c => edgeKey(c.a, c.b)));
+  const nodes = new Set();
+  cards.forEach(c => { nodes.add(c.a); nodes.add(c.b); });
+  const out = new Set();
+  nodes.forEach(n => neighbors(n, q).forEach(m => {
+    const k = edgeKey(n, m);
+    if (!occ.has(k)) out.add(k);
+  }));
+  return Array.from(out);
+}
+
+/* ------------------------------------------------------------------ */
+/*  ミッション (実在の物理発見に対応するボーナス図形)                    */
+/* ------------------------------------------------------------------ */
+const fermOf = v => v.ends.filter(e => e.p.kind === 'f').map(e => e.p);
+const MISSIONS = [
+  { id:'atom', bonus:4, name:'原子が壊れない理由',
+    desc:'光子の線が、電子(レプトン)の電磁結合とクォークの電磁結合をつなぐ。',
+    test:(c, a, b) => c.p.kind === 'γ' && a.tag === 'ffγ' && b.tag === 'ffγ' &&
+      ((fermOf(a)[0].type !== 'quark' && fermOf(b)[0].type === 'quark') || (fermOf(b)[0].type !== 'quark' && fermOf(a)[0].type === 'quark')) },
+  { id:'sky', bonus:4, name:'空が青い理由',
+    desc:'荷電フェルミオンの線が、2つの電磁結合(光子の吸収と放出)の間をつなぐ。',
+    test:(c, a, b) => c.p.kind === 'f' && c.p.Q !== 0 && a.tag === 'ffγ' && b.tag === 'ffγ' },
+  { id:'qcd', bonus:4, name:'ノーベル賞2004:漸近的自由',
+    desc:'グルーオンの線が、グルーオン自己結合(ggg)とクォークの強い結合(qqg)をつなぐ。',
+    test:(c, a, b) => c.p.kind === 'g' && ((a.tag === 'ggg' && b.tag === 'ffg') || (b.tag === 'ggg' && a.tag === 'ffg')) },
+  { id:'beta', bonus:5, name:'β崩壊(d → u + e⁻ + ν̄e)',
+    desc:'Wの線が、u–d–W の頂点と e–νe–W の頂点をつなぐ。',
+    test:(c, a, b) => {
+      if (c.p.kind !== 'W' || a.tag !== 'ffW' || b.tag !== 'ffW') return false;
+      const has = (v, ids) => ids.every(id => fermOf(v).some(p => p.id === id));
+      return (has(a, ['u','d']) && has(b, ['e','ve'])) || (has(b, ['u','d']) && has(a, ['e','ve']));
+    } },
+  { id:'nc', bonus:5, name:'中性カレントの発見(1973)',
+    desc:'Zの線が、ニュートリノのZ結合と荷電フェルミオンのZ結合をつなぐ。',
+    test:(c, a, b) => c.p.kind === 'Z' && a.tag === 'ffZ' && b.tag === 'ffZ' &&
+      ((fermOf(a)[0].type === 'nu' && fermOf(b)[0].type !== 'nu') || (fermOf(b)[0].type === 'nu' && fermOf(a)[0].type !== 'nu')) },
+  { id:'lep', bonus:5, name:'ゲージ粒子の自己結合(LEP)',
+    desc:'WWγ または WWZ の頂点から出る2本のWが、どちらもW結合(ffW)の頂点につながる。',
+    testNode:(node, info, cardsAt, info2) => {
+      const v = info; if (v.tag !== 'WWγ' && v.tag !== 'WWZ') return false;
+      const ws = v.ends.filter(e => e.p.kind === 'W');
+      return ws.every(e => { const o = e.card.a === node ? e.card.b : e.card.a; const w = info2.get(o); return w && w.status === 'valid' && w.tag === 'ffW'; });
+    } },
+  { id:'higgs', bonus:6, name:'ヒッグス粒子の発見(H→ZZ→4ℓ)',
+    desc:'H–Z–Z の頂点から出る2本のZが、どちらも荷電レプトンのZ結合につながる。',
+    testNode:(node, info, cardsAt, info2) => {
+      if (info.tag !== 'HZZ') return false;
+      const zs = info.ends.filter(e => e.p.kind === 'Z');
+      return zs.every(e => { const o = e.card.a === node ? e.card.b : e.card.a; const w = info2.get(o); return w && w.status === 'valid' && w.tag === 'ffZ' && fermOf(w)[0].type === 'lepton'; });
+    } }
+];
+
+/* ------------------------------------------------------------------ */
+/*  図の評価                                                            */
+/* ------------------------------------------------------------------ */
+function evaluate(cards, modeKey, final, q) {
+  const nodes = buildNodes(cards);
+  const info = new Map();
+  let vpts = 0, invalid = 0, badInc = 0, okInc = 0, validCount = 0;
+  nodes.forEach((ends, n) => {
+    if (ends.length >= 3) {
+      const v = validateVertex(ends);
+      if (v.ok) { info.set(n, { node:n, ends, status:'valid', tag:v.tag, pts:v.pts, ckm:v.ckm }); vpts += v.pts; validCount++; }
+      else if (ends.length === 3 && q && canExtend(ends, modeKey, true)) { info.set(n, { node:n, ends, status:'open', quartic:true }); okInc++; }
+      else { info.set(n, { node:n, ends, status:'invalid', pts:-1, why:v.why }); invalid++; }
+    } else if (ends.length === 2) {
+      if (canExtend(ends, modeKey, !!q)) { info.set(n, { node:n, ends, status:'open' }); okInc++; }
+      else { info.set(n, { node:n, ends, status:'dead' }); badInc++; }
+    } else {
+      info.set(n, { node:n, ends, status:'single' });
+    }
+  });
+
+  // ループ: 閉じた最小の輪(蜂の巣格子=六角形6枚、正方格子=正方形4枚)
+  const loops = [];
+  if (cards.length >= (q ? 4 : 6)) {
+    const occ = new Set(cards.map(c => edgeKey(c.a, c.b)));
+    let mini = 1e9, maxi = -1e9, minj = 1e9, maxj = -1e9;
+    nodes.forEach((_, n) => { const [i, j] = parseNode(n); mini = Math.min(mini, i); maxi = Math.max(maxi, i); minj = Math.min(minj, j); maxj = Math.max(maxj, j); });
+    for (let i = mini - 2; i <= maxi; i++) {
+      for (let j = minj - 1; j <= maxj; j++) {
+        let ring;
+        if (q) ring = [nk(i,j), nk(i+1,j), nk(i+1,j+1), nk(i,j+1)];
+        else {
+          if (((i + j) % 2 + 2) % 2 !== 0) continue;
+          ring = [nk(i,j), nk(i+1,j), nk(i+2,j), nk(i+2,j+1), nk(i+1,j+1), nk(i,j+1)];
+        }
+        let all = true;
+        for (let k = 0; k < ring.length && all; k++) all = occ.has(edgeKey(ring[k], ring[(k+1)%ring.length]));
+        if (!all) continue;
+        const good = ring.every(n => { const st = info.get(n).status; return st === 'valid' || st === 'open'; });
+        if (good) loops.push(ring);
+      }
+    }
+  }
+
+  // ミッション
+  const missions = [];
+  MISSIONS.forEach(m => {
+    let hit = false;
+    if (m.test) {
+      for (const c of cards) {
+        const a = info.get(c.a), b = info.get(c.b);
+        if (a && b && a.status === 'valid' && b.status === 'valid' && m.test(c, a, b)) { hit = true; break; }
+      }
+    } else if (m.testNode) {
+      info.forEach((v, n) => { if (!hit && v.status === 'valid' && m.testNode(n, v, null, info)) hit = true; });
+    }
+    if (hit) missions.push(m.id);
+  });
+  const missionPts = missions.reduce((s, id) => s + MISSIONS.find(m => m.id === id).bonus, 0);
+
+  const loopPts = loops.length * 2;
+  const total = vpts - invalid + loopPts + missionPts - (final ? badInc : 0);
+  const heur = total + 0.15 * okInc - (final ? 0 : 0.5 * badInc);
+  return { total, heur, vpts, invalid, badInc, okInc, validCount, loops, missions, missionPts, loopPts, info };
+}
+
+/* ------------------------------------------------------------------ */
+/*  デッキ・ゲーム進行                                                   */
+/* ------------------------------------------------------------------ */
+function shuffle(arr, rnd) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; }
+  return a;
+}
+
+function buildDeck(modeKey, rnd) {
+  const m = MODES[modeKey];
+  const d = [];
+  m.fermions.forEach(id => { for (let k = 0; k < m.deck.fermion; k++) d.push(BY_ID[id]); });
+  ['gamma','gluon','W','Z','H'].forEach(id => { for (let k = 0; k < m.deck[id]; k++) d.push(BY_ID[id]); });
+  return shuffle(d, rnd);
+}
+
+function newGame(opts) {
+  const rnd = opts.rnd || Math.random;
+  const np = opts.players.length;
+  const solo = np === 1;
+  const s = {
+    mode: opts.mode, rnd, solo, np, quartic: !!opts.quartic,
+    R: solo ? 12 : (np === 2 ? 8 : np === 3 ? 9 : 8),
+    marketSize: solo ? 3 : np + 1,
+    players: opts.players.map(p => ({ name:p.name, human:!!p.human, diff:p.diff || 'normal', cards:[], secret:null })),
+    deck: buildDeck(opts.mode, rnd),
+    market: [], round: 0, first: 0, order: [], pickIdx: 0,
+    phase: 'pick', secretIdx: 0, nextId: 1, log: []
+  };
+  s.players.forEach(p => { p.secret = s.deck.pop(); });
+  beginRound(s);
+  return s;
+}
+
+function beginRound(s) {
+  s.round++;
+  s.market = [];
+  for (let i = 0; i < s.marketSize; i++) s.market.push(s.deck.pop());
+  if (s.solo) s.order = [0];
+  else {
+    s.order = [];
+    for (let k = 0; k < s.np; k++) s.order.push((s.first + k) % s.np);
+    s.order.push(s.first);
+  }
+  s.pickIdx = 0;
+}
+
+function currentPlayer(s) {
+  if (s.phase === 'pick') return s.order[s.pickIdx];
+  if (s.phase === 'secret') return s.secretIdx;
+  return -1;
+}
+
+function placeCard(s, pi, p, edge, dir) {
+  const [a, b] = splitEdge(edge);
+  s.players[pi].cards.push({ id: s.nextId++, p, a, b, dir: isDirected(p) ? dir : 1 });
+}
+
+function applyPick(s, marketIndex, edge, dir) {
+  const pi = s.order[s.pickIdx];
+  const p = s.market[marketIndex];
+  placeCard(s, pi, p, edge, dir);
+  s.market.splice(marketIndex, 1);
+  s.pickIdx++;
+  if (s.solo || s.pickIdx >= s.order.length) {
+    if (s.round >= s.R) { s.phase = 'secret'; s.secretIdx = 0; s.market = []; }
+    else { s.first = (s.first + 1) % s.np; beginRound(s); }
+  }
+  return { player: pi, p };
+}
+
+function applySecret(s, edge, dir) {
+  const pi = s.secretIdx;
+  const p = s.players[pi].secret;
+  placeCard(s, pi, p, edge, dir);
+  s.players[pi].secretPlaced = true;
+  s.secretIdx++;
+  if (s.secretIdx >= s.np) s.phase = 'over';
+  return { player: pi, p };
+}
+
+/* ------------------------------------------------------------------ */
+/*  CPU                                                                 */
+/* ------------------------------------------------------------------ */
+const NOISE = { easy: 2.2, normal: 0.9, hard: 0.15 };
+
+function bestPlacement(cards, p, modeKey, noise, rnd, final, q) {
+  const edges = candidateEdges(cards, q);
+  const base = evaluate(cards, modeKey, final, q).heur;
+  let best = null;
+  edges.forEach(e => {
+    const [a, b] = splitEdge(e);
+    const dirs = isDirected(p) ? [1, -1] : [1];
+    dirs.forEach(dir => {
+      const nc = cards.concat([{ id: -1, p, a, b, dir }]);
+      const gain = evaluate(nc, modeKey, final, q).heur - base + (rnd() - 0.5) * 2 * noise;
+      if (!best || gain > best.gain) best = { edge: e, dir, gain };
+    });
+  });
+  return best;
+}
+
+function cpuMove(s) {
+  const pi = currentPlayer(s);
+  const pl = s.players[pi];
+  const noise = NOISE[pl.diff] != null ? NOISE[pl.diff] : NOISE.normal;
+  if (s.phase === 'secret') {
+    const b = bestPlacement(pl.cards, pl.secret, s.mode, 0, s.rnd, true, s.quartic);
+    return { secret: true, edge: b.edge, dir: b.dir };
+  }
+  let best = null;
+  s.market.forEach((p, idx) => {
+    const b = bestPlacement(pl.cards, p, s.mode, noise, s.rnd, false, s.quartic);
+    if (!best || b.gain > best.gain) best = { index: idx, edge: b.edge, dir: b.dir, gain: b.gain };
+  });
+  return best;
+}
+
+return {
+  FERMIONS, BOSONS, PARTICLES, BY_ID, MODES, MISSIONS, TAG_LABEL, CKM_PTS, CKM_VAL, YUKAWA_PTS,
+  isDirected, universe, validateVertex, completable, evaluate, candidateEdges, edgeKey, splitEdge,
+  neighbors, nodePos, parseNode, buildNodes, newGame, applyPick, applySecret, currentPlayer, cpuMove, bestPlacement, shuffle
+};
+})();
+if (typeof module !== 'undefined') module.exports = TQ;
+
+</script>
+<script>
+(function () {
+'use strict';
+const $ = (s, r) => (r || document).querySelector(s);
+const L = 64; // 辺の長さ(SVG単位)
+
+/* ---------- 粒子の見た目 ---------- */
+function colorClass(p) {
+  if (p.kind === 'f') return p.type === 'quark' ? 'c-quark' : p.type === 'lepton' ? 'c-lepton' : 'c-nu';
+  return { 'γ': 'c-gamma', g: 'c-gluon', W: 'c-W', Z: 'c-Z', H: 'c-H' }[p.kind];
+}
+const CHARGE_TXT = q => q === 0 ? '0' : (q % 3 === 0 ? (q > 0 ? '+' : '−') + Math.abs(q / 3) : (q > 0 ? '+' : '−') + Math.abs(q) + '/3');
+function infoLines(p) {
+  const out = [];
+  if (p.kind === 'f') {
+    out.push('スピン 1/2 / 電荷 ' + CHARGE_TXT(p.Q) + ' / 質量 ' + p.mass + ' / 第' + p.gen + '世代');
+    if (p.type === 'quark') out.push('結合できる相手: 光子・グルーオン・Z・ヒッグス・W(' + (p.up ? 'ダウン型' : 'アップ型') + 'クォークへ変化)');
+    if (p.type === 'lepton') out.push('結合できる相手: 光子・Z・ヒッグス・W(同じ世代のニュートリノへ変化)。グルーオンとは結合しません。');
+    if (p.type === 'nu') out.push('結合できる相手: Z と W(荷電レプトンへ変化)だけ。光子・グルーオン・ヒッグスとは結合しません。');
+    out.push('矢印は粒子の流れ。同じ線で向きを逆にすると反粒子として読めます。');
+  } else {
+    const t = {
+      'γ': '電磁力を運ぶ。電荷を持つフェルミオンとW、ヒッグス(ループ経由)と結合。',
+      g: '強い力を運ぶ。クォークと、グルーオン同士(ggg)で結合。',
+      W: '荷電カレントを運ぶ。電荷が±1。矢印は負電荷の流れ。γ・Z・ヒッグスとも結合。',
+      Z: '中性カレントを運ぶ。すべてのフェルミオンと結合。WW・ヒッグスとも結合。',
+      H: 'ヒッグス場の励起。質量を持つ粒子と結合し、質量が小さいほど結合は弱く、稀。'
+    }[p.kind];
+    out.push('スピン ' + p.spin + ' / 電荷 ' + (p.kind === 'W' ? '±1' : '0') + ' / 質量 ' + p.mass);
+    out.push(t);
+  }
+  return out;
+}
+
+/* ---------- 線の描画 ---------- */
+function wavyPath(x1, y1, x2, y2, amp, waves) {
+  const dx = x2 - x1, dy = y2 - y1, d = Math.hypot(dx, dy), ux = dx / d, uy = dy / d, nx = -uy, ny = ux;
+  const pts = []; const N = 48;
+  for (let i = 0; i <= N; i++) {
+    const t = i / N, a = amp * Math.sin(2 * Math.PI * waves * t);
+    pts.push((x1 + ux * d * t + nx * a).toFixed(1) + ',' + (y1 + uy * d * t + ny * a).toFixed(1));
+  }
+  return 'M' + pts.join(' L');
+}
+function coilPath(x1, y1, x2, y2, R, k) {
+  const dx = x2 - x1, dy = y2 - y1, d = Math.hypot(dx, dy), ux = dx / d, uy = dy / d, nx = -uy, ny = ux;
+  const pts = []; const N = 90;
+  for (let i = 0; i <= N; i++) {
+    const s = i / N, th = 2 * Math.PI * k * s;
+    const along = s * d - R * 0.9 * Math.sin(th), side = R * (1 - Math.cos(th)) / 2 - R * 0.0;
+    pts.push((x1 + ux * along + nx * (side - R / 2 * Math.sin(Math.PI * s))).toFixed(1) + ',' + (y1 + uy * along + ny * (side - R / 2 * Math.sin(Math.PI * s))).toFixed(1));
+  }
+  return 'M' + pts.join(' L');
+}
+function lineSvg(p, x1, y1, x2, y2, dir, extraCls) {
+  const cls = colorClass(p) + ' ' + (extraCls || '');
+  let d, style = '';
+  if (p.kind === 'f') d = 'M' + x1 + ',' + y1 + ' L' + x2 + ',' + y2;
+  else if (p.kind === 'γ') d = wavyPath(x1, y1, x2, y2, 4.5, 5);
+  else if (p.kind === 'W' || p.kind === 'Z') d = wavyPath(x1, y1, x2, y2, 6, 4);
+  else if (p.kind === 'g') d = coilPath(x1, y1, x2, y2, 11, 5);
+  else d = 'M' + x1 + ',' + y1 + ' L' + x2 + ',' + y2; // H
+  if (p.kind === 'H') style = ' stroke-dasharray="7 6"';
+  let s = '<path class="ln ' + cls + '" d="' + d + '"' + style + '/>';
+  if (TQ.isDirected(p)) {
+    const t = 0.74, ax = x1 + (x2 - x1) * t, ay = y1 + (y2 - y1) * t;
+    let ang = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI; if (dir === -1) ang += 180;
+    s += '<path class="ar ' + cls + '" transform="translate(' + ax.toFixed(1) + ',' + ay.toFixed(1) + ') rotate(' + ang.toFixed(1) + ')" d="M7,0 L-5,-6 L-5,6 Z"/>';
+  }
+  return s;
+}
+function bubble(p, x, y, extra) {
+  const w = p.sym.length > 1 ? 15 : 13;
+  return '<g class="bub ' + colorClass(p) + (extra ? ' ' + extra : '') + '"><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + w + '"/>' +
+    '<text x="' + x.toFixed(1) + '" y="' + (y + 4.5).toFixed(1) + '" text-anchor="middle">' + p.sym + '</text></g>';
+}
+
+/* ---------- 状態 ---------- */
+const ui = { game: null, view: 0, sel: null, edge: null, dir: 1, node: null, busy: false, setup: { mode: 'basic', players: 2, diff: 'normal', quartic: false } };
+
+/* ---------- 画面切り替え ---------- */
+function show(id) { ['setup', 'game'].forEach(x => { $('#' + x).hidden = x !== id; }); }
+
+/* ---------- セットアップ ---------- */
+function renderSetup() {
+  const s = ui.setup;
+  const seg = (name, opts, cur) => '<div class="seg" role="group" data-seg="' + name + '">' + opts.map(o =>
+    '<button type="button" class="' + (String(cur) === String(o[0]) ? 'on' : '') + '" data-v="' + o[0] + '">' + o[1] + '</button>').join('') + '</div>';
+  $('#setup-body').innerHTML =
+    '<div class="field"><div class="lab">モード</div>' + seg('mode', [['basic', '入門(第1世代)'], ['full', 'フル(3世代・全結合)']], s.mode) +
+    '<p class="hint">' + TQ.MODES[s.mode].desc + '</p></div>' +
+    '<div class="field"><div class="lab">頂点の種類</div>' + seg('quartic', [['0', '3点結合のみ'], ['1', '3点+4点結合']], s.quartic ? '1' : '0') +
+    '<p class="hint">' + (s.quartic ? '正方格子で遊びます。1つの頂点に最大4本の線を集められ、WWWW・WWγγ・HHZZ・HHHH などの4点結合が作れます。' : '蜂の巣格子で遊びます。1つの頂点には3本の線が集まります。') + '</p></div>' +
+    '<div class="field"><div class="lab">遊ぶ人数</div>' + seg('players', [[1, 'ソロ'], [2, 'CPU 1人'], [3, 'CPU 2人'], [4, 'CPU 3人']], s.players === 1 ? 1 : s.players === 2 ? 2 : s.players === 3 ? 3 : 4) +
+    '<p class="hint">' + (s.players === 1 ? '3枚のうち1枚を選び、残りは捨てます(全12ラウンド)。' : '場に並んだカードから1枚ずつ選び、自分の図に貼っていきます。') + '</p></div>' +
+    (s.players > 1 ? '<div class="field"><div class="lab">CPUの強さ</div>' + seg('diff', [['easy', 'やさしい'], ['normal', 'ふつう'], ['hard', 'つよい']], s.diff) + '</div>' : '');
+}
+
+function startGame() {
+  const s = ui.setup;
+  const players = [{ name: 'あなた', human: true }];
+  for (let i = 1; i < s.players; i++) players.push({ name: 'CPU' + i, human: false, diff: s.diff });
+  ui.game = TQ.newGame({ mode: s.mode, players, quartic: s.quartic });
+  ui.view = 0; ui.sel = null; ui.edge = null; ui.dir = 1; ui.node = null; ui.busy = false;
+  show('game'); $('#over').hidden = true;
+  render();
+  setMsg('場のカードを1枚選んでください。');
+  nextTurn();
+}
+
+/* ---------- 進行 ---------- */
+function curIsHuman() {
+  const g = ui.game; if (g.phase === 'over') return false;
+  return g.players[TQ.currentPlayer(g)].human;
+}
+function nextTurn() {
+  const g = ui.game;
+  if (g.phase === 'over') { finish(); return; }
+  const pi = TQ.currentPlayer(g);
+  if (g.players[pi].human) {
+    ui.busy = false; ui.view = pi; ui.edge = null;
+    if (g.phase === 'secret') { ui.sel = 'secret'; setMsg('最後に、配りの時に引いた「秘密カード」を図に貼ります。'); }
+    else ui.sel = null;
+    render(); return;
+  }
+  ui.busy = true; render();
+  setTimeout(() => {
+    const mv = TQ.cpuMove(g);
+    const name = g.players[pi].name;
+    let r;
+    if (g.phase === 'secret') r = TQ.applySecret(g, mv.edge, mv.dir);
+    else r = TQ.applyPick(g, mv.index, mv.edge, mv.dir);
+    setMsg(name + ' が ' + r.p.jp + ' を貼りました。');
+    nextTurn();
+  }, 650);
+}
+function confirmMove() {
+  const g = ui.game; if (!curIsHuman() || !ui.edge || ui.sel == null) return;
+  let r;
+  if (g.phase === 'secret') r = TQ.applySecret(g, ui.edge, ui.dir);
+  else r = TQ.applyPick(g, ui.sel, ui.edge, ui.dir);
+  setMsg(r.p.jp + ' を貼りました。');
+  ui.sel = null; ui.edge = null; ui.node = null; ui.dir = 1;
+  nextTurn();
+}
+
+/* ---------- 描画 ---------- */
+function setMsg(t) { $('#msg').textContent = t; }
+
+function selectedParticle() {
+  const g = ui.game; if (ui.sel == null) return null;
+  if (g.phase === 'secret') return g.players[TQ.currentPlayer(g)].secret;
+  return g.market[ui.sel] || null;
+}
+
+function render() {
+  const g = ui.game; if (!g) return;
+  renderBar(); renderMarket(); renderBoard(); renderInfo(); renderControls();
+}
+
+function renderBar() {
+  const g = ui.game;
+  const cur = TQ.currentPlayer(g);
+  $('#round').textContent = g.phase === 'pick' ? ('ラウンド ' + g.round + ' / ' + g.R) : g.phase === 'secret' ? '最終配置' : '終了';
+  $('#deck').textContent = '山札 ' + g.deck.length;
+  $('#chips').innerHTML = g.players.map((p, i) => {
+    const e = TQ.evaluate(p.cards, g.mode, g.phase === 'over', g.quartic);
+    return '<button class="chip' + (i === ui.view ? ' view' : '') + (i === cur ? ' turn' : '') + '" data-view="' + i + '"><span class="nm">' + p.name + '</span><span class="sc">' + e.total + '</span><span class="ct">' + p.cards.length + '枚</span></button>';
+  }).join('');
+}
+
+function cardHtml(p, idx, selected, disabled) {
+  return '<button class="pc ' + colorClass(p) + (selected ? ' sel' : '') + '" data-idx="' + idx + '"' + (disabled ? ' disabled' : '') + '>' +
+    '<span class="sym">' + p.sym + '</span><span class="jp">' + p.jp + '</span></button>';
+}
+function renderMarket() {
+  const g = ui.game, box = $('#market');
+  if (g.phase === 'secret') {
+    const pl = g.players[TQ.currentPlayer(g)];
+    box.innerHTML = pl && pl.human ? '<div class="mlab">秘密カード</div>' + cardHtml(pl.secret, 'secret', true, false) : '<div class="mlab">秘密カードを配置中…</div>';
+    return;
+  }
+  if (g.phase === 'over') { box.innerHTML = ''; return; }
+  const my = curIsHuman();
+  box.innerHTML = '<div class="mlab">場のカード</div>' + g.market.map((p, i) => cardHtml(p, i, my && ui.sel === i, !my)).join('');
+}
+
+function renderBoard() {
+  const g = ui.game, svg = $('#board');
+  const pl = g.players[ui.view];
+  const cards = pl.cards;
+  const my = curIsHuman() && ui.view === TQ.currentPlayer(g);
+  const ev = TQ.evaluate(cards, g.mode, g.phase === 'over', g.quartic);
+  const cand = my && ui.sel != null ? TQ.candidateEdges(cards, g.quartic) : [];
+  const P = k => TQ.nodePos(k, L, g.quartic);
+
+  // 表示範囲
+  const pts = [];
+  cards.forEach(c => { pts.push(P(c.a), P(c.b)); });
+  cand.forEach(e => { const [a, b] = TQ.splitEdge(e); pts.push(P(a), P(b)); });
+  if (!pts.length) pts.push(P('0,0'), P('1,0'));
+  let x0 = Math.min(...pts.map(p => p.x)), x1 = Math.max(...pts.map(p => p.x));
+  let y0 = Math.min(...pts.map(p => p.y)), y1 = Math.max(...pts.map(p => p.y));
+  const pad = L * 0.9;
+  let w = x1 - x0 + pad * 2, h = y1 - y0 + pad * 2;
+  const minW = L * 7.5, minH = L * 5.5;
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  w = Math.max(w, minW); h = Math.max(h, minH);
+  const ar = svg.clientWidth && svg.clientHeight ? svg.clientWidth / svg.clientHeight : 1.4;
+  if (w / h < ar) w = h * ar; else h = w / ar;
+  svg.setAttribute('viewBox', (cx - w / 2).toFixed(1) + ' ' + (cy - h / 2).toFixed(1) + ' ' + w.toFixed(1) + ' ' + h.toFixed(1));
+
+  let s = '';
+  // ループの淡い塗り
+  ev.loops.forEach(r => { s += '<polygon class="loop" points="' + r.map(n => { const p = P(n); return p.x.toFixed(1) + ',' + p.y.toFixed(1); }).join(' ') + '"/>'; });
+
+  // 候補辺
+  cand.forEach(e => {
+    const [a, b] = TQ.splitEdge(e), pa = P(a), pb = P(b);
+    const on = ui.edge === e;
+    s += '<g class="cand' + (on ? ' on' : '') + '" data-edge="' + e + '"><line x1="' + pa.x.toFixed(1) + '" y1="' + pa.y.toFixed(1) + '" x2="' + pb.x.toFixed(1) + '" y2="' + pb.y.toFixed(1) + '"/>' +
+      '<circle cx="' + ((pa.x + pb.x) / 2).toFixed(1) + '" cy="' + ((pa.y + pb.y) / 2).toFixed(1) + '" r="9"/>' +
+      '<line class="hit" x1="' + pa.x.toFixed(1) + '" y1="' + pa.y.toFixed(1) + '" x2="' + pb.x.toFixed(1) + '" y2="' + pb.y.toFixed(1) + '"/></g>';
+  });
+
+  // 貼ったカード
+  cards.forEach(c => {
+    const pa = P(c.a), pb = P(c.b);
+    s += '<g class="card" data-cid="' + c.id + '">' + lineSvg(c.p, pa.x, pa.y, pb.x, pb.y, c.dir) + bubble(c.p, (pa.x + pb.x) / 2, (pa.y + pb.y) / 2) + '</g>';
+  });
+
+  // プレビュー
+  const sp = selectedParticle();
+  if (my && ui.edge && sp) {
+    const [a, b] = TQ.splitEdge(ui.edge), pa = P(a), pb = P(b);
+    s += '<g class="ghost">' + lineSvg(sp, pa.x, pa.y, pb.x, pb.y, ui.dir) + bubble(sp, (pa.x + pb.x) / 2, (pa.y + pb.y) / 2) + '</g>';
+  }
+
+  // ノードの状態
+  let pcards = cards;
+  if (my && ui.edge && sp) pcards = cards.concat([{ id: -1, p: sp, a: TQ.splitEdge(ui.edge)[0], b: TQ.splitEdge(ui.edge)[1], dir: ui.dir }]);
+  const pev = pcards === cards ? ev : TQ.evaluate(pcards, g.mode, false, g.quartic);
+  pev.info.forEach((v, n) => {
+    const p = P(n);
+    if (v.status === 'single') { s += '<circle class="nd" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="3"/>'; return; }
+    let cls = 'badge ', txt = '';
+    if (v.status === 'valid') { cls += 'ok'; txt = '+' + v.pts; }
+    else if (v.status === 'invalid') { cls += 'ng'; txt = '×'; }
+    else if (v.status === 'open') { cls += 'op'; txt = '…'; }
+    else { cls += 'dead'; txt = '!'; }
+    s += '<g class="' + cls + (ui.node === n ? ' pick' : '') + '" data-node="' + n + '"><circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="' + (v.status === 'valid' ? 11 : 9) + '"/><text x="' + p.x.toFixed(1) + '" y="' + (p.y + 4).toFixed(1) + '" text-anchor="middle">' + txt + '</text></g>';
+  });
+  svg.innerHTML = s;
+  $('#viewname').textContent = pl.name + ' の図';
+}
+
+function renderInfo() {
+  const g = ui.game, box = $('#info');
+  const sp = selectedParticle();
+  let h = '';
+  if (ui.node) {
+    const ev = TQ.evaluate(g.players[ui.view].cards, g.mode, g.phase === 'over', g.quartic);
+    const v = ev.info.get(ui.node);
+    if (v) {
+      h += '<div class="ih">この頂点</div><p>' + v.ends.map(e => e.p.sym + (e.io === 1 ? '(入)' : e.io === -1 ? '(出)' : '')).join(' ・ ') + '</p>';
+      if (v.status === 'valid') h += '<p class="good">有効:' + TQ.TAG_LABEL[v.tag] + '(+' + v.pts + '点)' + (v.ckm ? ' |V|=' + v.ckm : '') + '</p>';
+      else if (v.status === 'invalid') h += '<p class="bad">無効(−1点):' + v.why + '</p>';
+      else if (v.status === 'open') h += '<p>' + (v.ends.length === 3 ? '3点結合としては無効ですが、あと1本足すと4点結合として有効になります。' : '未完成ですが、あと' + (g.quartic ? '1〜2' : '1') + '本で有効な頂点にできます。') + '</p>';
+      else if (v.status === 'dead') h += '<p class="bad">未完成で、どの粒子を足しても有効になりません。終了時に−1点です。</p>';
+    }
+  } else if (sp) {
+    h += '<div class="ih">' + sp.jp + '(' + sp.en + ')</div>' + infoLines(sp).map(t => '<p>' + t + '</p>').join('');
+  } else {
+    h += '<p class="muted">頂点の ✓ 数字・× ・… ・! をタップすると、その頂点の判定理由が見られます。</p>';
+  }
+  box.innerHTML = h;
+}
+
+function renderControls() {
+  const g = ui.game, my = curIsHuman();
+  const sp = selectedParticle();
+  const flip = $('#flip'), ok = $('#ok');
+  flip.hidden = !(my && sp && TQ.isDirected(sp) && ui.edge);
+  $('#hint').hidden = !(my && sp);
+  ok.disabled = !(my && ui.edge && sp);
+  ok.textContent = g.phase === 'secret' ? '秘密カードを貼る' : 'ここに貼る';
+  $('#controls').hidden = !my;
+}
+
+function finish() {
+  const g = ui.game;
+  render();
+  const res = g.players.map((p, i) => ({ i, p, e: TQ.evaluate(p.cards, g.mode, true, g.quartic) })).sort((a, b) => b.e.total - a.e.total);
+  const best = res[0].e.total;
+  let h = '<h2>' + (g.np === 1 ? 'ゲーム終了' : (res[0].p.human ? 'あなたの勝ちです' : res[0].p.name + ' の勝ち')) + '</h2>';
+  h += '<div class="rank">' + res.map((r, k) => {
+    const e = r.e;
+    const ms = e.missions.map(id => TQ.MISSIONS.find(m => m.id === id).name);
+    return '<button class="rrow' + (r.e.total === best ? ' top' : '') + '" data-view="' + r.i + '"><span class="rn">' + r.p.name + '</span><span class="rs">' + e.total + '点</span>' +
+      '<span class="rd">有効 ' + e.validCount + '(' + e.vpts + '点) / 無効 ' + (e.invalid + e.badInc) + ' / ループ ' + e.loops.length + '(+' + e.loopPts + ') / ミッション ' + e.missions.length + '(+' + e.missionPts + ')</span>' +
+      (ms.length ? '<span class="rm">' + ms.join('、') + '</span>' : '') + '</button>';
+  }).join('') + '</div>';
+  h += '<div class="row"><button id="again" class="btn main">もう一度遊ぶ</button><button id="closeover" class="btn">図を見る</button></div>';
+  $('#over').innerHTML = h; $('#over').hidden = false;
+}
+
+/* ---------- ルール・図鑑 ---------- */
+function renderGuide() {
+  const T = TQ.TAG_LABEL;
+  const rows = [
+    ['γ + f f̄', T['ffγ'], '2', '同じフェルミオンの線が続き、電荷を持つこと'],
+    ['g + q q̄', T['ffg'], '2', 'クォークだけ'],
+    ['Z + f f̄', T['ffZ'], '2(ν は 3)', 'ニュートリノを含む全フェルミオン'],
+    ['W + ℓ ν', T['ffW'], '3', '同じ世代の荷電レプトンとニュートリノ'],
+    ['W + q q′', T['ffW'], '3〜6', 'アップ型とダウン型。CKM行列の |V| が小さい組ほど高得点'],
+    ['H + f f̄', T['ffH'], '2〜5', 'ν 以外。質量が小さい粒子ほど結合が弱く高得点'],
+    ['g g g', T['ggg'], '3', ''],
+    ['W W γ / W W Z', T['WWγ'], '4', '2本のWの矢印は逆向き'],
+    ['H W W / H Z Z', T['HWW'], '5', ''],
+    ['H H H', T['HHH'], '6', ''],
+    ['H γ γ / H Z γ', 'ループ結合', '6', '粒子の循環を1つの頂点として扱う'],
+    ['H g g', 'ループ結合', '5', '']
+  ];
+  const rows4 = [
+    ['g g g g', T['gggg'], '4', ''],
+    ['W W W W', T['WWWW'], '6', 'Wの矢印は2本が入り、2本が出る'],
+    ['W W γ γ / W W γ Z / W W Z Z', 'ゲージ4点結合', '6', '2本のWの矢印は逆向き'],
+    ['H H W W / H H Z Z', 'ヒッグス–ゲージ4点結合', '6', ''],
+    ['H H H H', T['HHHH'], '7', '']
+  ];
+  const ckmRows = ['u', 'c', 't'].map(u => '<tr><th>' + u + '</th>' + ['d', 's', 'b'].map(d => '<td>' + TQ.CKM_VAL[u + d] + '<br><b>' + TQ.CKM_PTS[u + d] + '点</b></td>').join('') + '</tr>').join('');
+  const part = TQ.PARTICLES.map(p => '<tr><td><span class="mini ' + colorClass(p) + '">' + p.sym + '</span></td><td>' + p.jp + '</td><td>' + (p.kind === 'W' ? '±1' : CHARGE_TXT(p.Q)) + '</td><td>' + p.mass + '</td></tr>').join('');
+  $('#guide-body').innerHTML =
+    '<h3>遊び方</h3><ol>' +
+    '<li>場のカードから1枚選び、自分の図に貼ります。図は蜂の巣状の格子で、カード1枚が1本の線です。最初の1枚以外は、すでに貼ったカードにつなげます。</li>' +
+    '<li>3本の線が集まる点が「頂点」です。標準模型に存在する結合なら有効で得点、存在しない結合なら−1点。</li>' +
+    '<li>電子・クォーク・ニュートリノ・Wには矢印があります。フェルミオンの線は頂点で「入る1本・出る1本」になるように向きを選びます。</li>' +
+    '<li>最後に秘密カードを貼り、合計点で競います。</li></ol>' +
+    '<h3>得点になる頂点</h3><div class="tw"><table><thead><tr><th>頂点</th><th>名前</th><th>点</th><th>条件</th></tr></thead><tbody>' +
+    rows.map(r => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td><td>' + r[3] + '</td></tr>').join('') + '</tbody></table></div>' +
+    '<h3>4点結合(「3点+4点結合」モード)</h3><div class="tw"><table><thead><tr><th>頂点</th><th>名前</th><th>点</th><th>条件</th></tr></thead><tbody>' +
+    rows4.map(r => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td><td>' + r[3] + '</td></tr>').join('') + '</tbody></table></div>' +
+    '<p class="note">4点モードは正方格子です。標準模型にはフェルミオンを含む4点結合がないので、電子やクォークの線が3本以上集まる頂点は無効です。3本が集まった時点で3点結合として無効でも、あと1本で4点結合になるなら「…」(未完成)になります。</p>' +
+    '<p class="note">2本だけの未完成の頂点は、あと1本(4点モードでは最大2本)で有効にできるなら0点(…)、どの粒子を足しても有効にならないなら終了時に−1点(!)です。</p>' +
+    '<h3>ボーナス</h3><ul><li><b>ループ</b>:閉じた最小の輪(蜂の巣格子は六角形6枚、正方格子は正方形4枚)で、すべての頂点が有効(または完成可能)なら +2点。</li>' +
+    TQ.MISSIONS.map(m => '<li><b>' + m.name + '</b>(+' + m.bonus + '点):' + m.desc + '</li>').join('') + '</ul>' +
+    '<h3>CKM行列(Wが世代をまたぐ強さ)</h3><div class="tw"><table class="ckm"><thead><tr><th></th><th>d</th><th>s</th><th>b</th></tr></thead><tbody>' + ckmRows + '</tbody></table></div>' +
+    '<h3>粒子一覧</h3><div class="tw"><table><thead><tr><th></th><th>名前</th><th>電荷</th><th>質量</th></tr></thead><tbody>' + part + '</tbody></table></div>' +
+    '<h3>このゲームで省いているもの</h3><p class="note">4点結合は「3点+4点結合」モードだけで扱います(フェルミオンを含む4点結合は標準模型の基本結合にありません)。ニュートリノ質量と振動、CP対称性の破れ、色荷の細かい流れ、時間順序は扱いません。ヒッグスのループ結合(γγ・Zγ・gg)は、1つの頂点にまとめた近似です。</p>' +
+    '<p class="note">素粒子ファインマン図カードゲーム「Tutti Quantum」(EPFL+ECAL Lab / Helvetiq)に着想を得た非公式の個人用プロトタイプです。得点やルールは原作とは異なります。</p>';
+}
+
+/* ---------- イベント ---------- */
+function bind() {
+  document.addEventListener('click', ev => {
+    const t = ev.target;
+    const seg = t.closest('.seg button');
+    if (seg) {
+      const name = seg.parentNode.dataset.seg, v = seg.dataset.v;
+      if (name === 'mode') ui.setup.mode = v; else if (name === 'players') ui.setup.players = +v; else if (name === 'quartic') ui.setup.quartic = v === '1'; else ui.setup.diff = v;
+      renderSetup(); return;
+    }
+    if (t.closest('#start')) { startGame(); return; }
+    if (t.closest('#guide-open')) { renderGuide(); $('#guide').hidden = false; $('#guide-body').scrollTop = 0; return; }
+    if (t.closest('#guide-close') || t.id === 'guide') { $('#guide').hidden = true; return; }
+    if (t.closest('#new')) { if (!ui.game || ui.game.phase === 'over' || confirm('いまのゲームをやめて、設定画面に戻りますか?')) { show('setup'); renderSetup(); } return; }
+    if (t.closest('#again')) { show('setup'); renderSetup(); return; }
+    if (t.closest('#closeover')) { $('#over').hidden = true; return; }
+    const rr = t.closest('.rrow'); if (rr) { ui.view = +rr.dataset.view; $('#over').hidden = true; render(); return; }
+    if (!ui.game) return;
+    const chip = t.closest('.chip');
+    if (chip) { ui.view = +chip.dataset.view; ui.node = null; render(); return; }
+    const pc = t.closest('.pc');
+    if (pc && curIsHuman()) {
+      const g = ui.game;
+      ui.sel = pc.dataset.idx === 'secret' ? 'secret' : +pc.dataset.idx; ui.edge = null; ui.node = null; ui.dir = 1;
+      ui.view = TQ.currentPlayer(g);
+      render();
+      setMsg('光っている辺をタップして、貼る場所を選んでください。');
+      return;
+    }
+    const cand = t.closest('.cand');
+    if (cand) { ui.edge = cand.dataset.edge; ui.node = null; render(); setMsg(TQ.isDirected(selectedParticle()) ? '矢印の向きを確認し、「ここに貼る」を押してください。' : '「ここに貼る」を押してください。'); return; }
+    const nd = t.closest('[data-node]');
+    if (nd) { ui.node = ui.node === nd.dataset.node ? null : nd.dataset.node; renderInfo(); renderBoard(); return; }
+    if (t.closest('#hint')) {
+      const sp = selectedParticle(); if (!sp || !curIsHuman()) return;
+      const g = ui.game, pl = g.players[TQ.currentPlayer(g)];
+      const b = TQ.bestPlacement(pl.cards, sp, g.mode, 0, g.rnd, g.phase === 'secret', g.quartic);
+      if (b) { ui.edge = b.edge; ui.dir = b.dir; ui.node = null; render(); setMsg('この位置がいちばん得点が伸びます。「ここに貼る」で確定できます。'); }
+      return;
+    }
+    if (t.closest('#flip')) { ui.dir = -ui.dir; render(); return; }
+    if (t.closest('#ok')) { confirmMove(); return; }
+  });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') $('#guide').hidden = true; });
+  window.addEventListener('resize', () => { if (ui.game) renderBoard(); });
+}
+
+window.__tq = { ui };
+document.addEventListener('DOMContentLoaded', () => { bind(); renderSetup(); show('setup'); });
+})();
+
+</script>
+</body>
+</html>
