@@ -1,7 +1,9 @@
 (function () {
 'use strict';
 const $ = (s, r) => (r || document).querySelector(s);
-const L = 64; // 辺の長さ(SVG単位)
+const L = 88; // 辺の長さ(SVG単位)
+const T_LABEL = 0.32, T_ARROW = 0.68; // 線上の位置: 名前の丸 / 矢印(頂点バッジと重ならないよう分ける)
+const lerp = (pa, pb, t) => ({ x: pa.x + (pb.x - pa.x) * t, y: pa.y + (pb.y - pa.y) * t });
 
 /* ---------- 粒子の見た目 ---------- */
 function colorClass(p) {
@@ -62,9 +64,9 @@ function lineSvg(p, x1, y1, x2, y2, dir, extraCls) {
   if (p.kind === 'H') style = ' stroke-dasharray="7 6"';
   let s = '<path class="ln ' + cls + '" d="' + d + '"' + style + '/>';
   if (TQ.isDirected(p)) {
-    const t = 0.74, ax = x1 + (x2 - x1) * t, ay = y1 + (y2 - y1) * t;
+    const t = T_ARROW, ax = x1 + (x2 - x1) * t, ay = y1 + (y2 - y1) * t;
     let ang = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI; if (dir === -1) ang += 180;
-    s += '<path class="ar ' + cls + '" transform="translate(' + ax.toFixed(1) + ',' + ay.toFixed(1) + ') rotate(' + ang.toFixed(1) + ')" d="M7,0 L-5,-6 L-5,6 Z"/>';
+    s += '<path class="ar ' + cls + '" transform="translate(' + ax.toFixed(1) + ',' + ay.toFixed(1) + ') rotate(' + ang.toFixed(1) + ')" d="M10,0 L-7,-9 L-7,9 Z"/>';
   }
   return s;
 }
@@ -202,7 +204,7 @@ function renderBoard() {
   let y0 = Math.min(...pts.map(p => p.y)), y1 = Math.max(...pts.map(p => p.y));
   const pad = L * 0.9;
   let w = x1 - x0 + pad * 2, h = y1 - y0 + pad * 2;
-  const minW = L * 7.5, minH = L * 5.5;
+  const minW = L * 5.5, minH = L * 4;
   const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
   w = Math.max(w, minW); h = Math.max(h, minH);
   const ar = svg.clientWidth && svg.clientHeight ? svg.clientWidth / svg.clientHeight : 1.4;
@@ -225,14 +227,14 @@ function renderBoard() {
   // 貼ったカード
   cards.forEach(c => {
     const pa = P(c.a), pb = P(c.b);
-    s += '<g class="card" data-cid="' + c.id + '">' + lineSvg(c.p, pa.x, pa.y, pb.x, pb.y, c.dir) + bubble(c.p, (pa.x + pb.x) / 2, (pa.y + pb.y) / 2) + '</g>';
+    s += '<g class="card" data-cid="' + c.id + '">' + lineSvg(c.p, pa.x, pa.y, pb.x, pb.y, c.dir) + bubble(c.p, lerp(pa, pb, T_LABEL).x, lerp(pa, pb, T_LABEL).y) + '</g>';
   });
 
   // プレビュー
   const sp = selectedParticle();
   if (my && ui.edge && sp) {
     const [a, b] = TQ.splitEdge(ui.edge), pa = P(a), pb = P(b);
-    s += '<g class="ghost">' + lineSvg(sp, pa.x, pa.y, pb.x, pb.y, ui.dir) + bubble(sp, (pa.x + pb.x) / 2, (pa.y + pb.y) / 2) + '</g>';
+    s += '<g class="ghost">' + lineSvg(sp, pa.x, pa.y, pb.x, pb.y, ui.dir) + bubble(sp, lerp(pa, pb, T_LABEL).x, lerp(pa, pb, T_LABEL).y) + '</g>';
   }
 
   // ノードの状態
