@@ -91,7 +91,7 @@ function renderSetup() {
     '<div class="field"><div class="lab">モード</div>' + seg('mode', [['basic', '入門(第1世代)'], ['full', 'フル(3世代・全結合)']], s.mode) +
     '<p class="hint">' + TQ.MODES[s.mode].desc + '</p></div>' +
     '<div class="field"><div class="lab">頂点の種類</div>' + seg('quartic', [['0', '3点結合のみ'], ['1', '3点+4点結合']], s.quartic ? '1' : '0') +
-    '<p class="hint">' + (s.quartic ? '正方格子で遊びます。1つの頂点に最大4本の線を集められ、WWWW・WWγγ・HHZZ・HHHH などの4点結合が作れます。' : '蜂の巣格子で遊びます。1つの頂点には3本の線が集まります。') + '</p></div>' +
+    '<p class="hint">' + (s.quartic ? '1つの頂点に最大4本の線を集められ、WWWW・WWγγ・HHZZ・HHHH などの4点結合が作れます。線は3本の頂点では120°、4本の頂点では90°ずつ開いて描かれます。ループは正方形(4枚)と六角形(6枚)の両方がボーナスになります。' : '蜂の巣格子で遊びます。1つの頂点には3本の線が集まります。') + '</p></div>' +
     '<div class="field"><div class="lab">遊ぶ人数</div>' + seg('players', [[1, 'ソロ'], [2, 'CPU 1人'], [3, 'CPU 2人'], [4, 'CPU 3人']], s.players === 1 ? 1 : s.players === 2 ? 2 : s.players === 3 ? 3 : 4) +
     '<p class="hint">' + (s.players === 1 ? '3枚のうち1枚を選び、残りは捨てます(全12ラウンド)。' : '場に並んだカードから1枚ずつ選び、自分の図に貼っていきます。') + '</p></div>' +
     (s.players > 1 ? '<div class="field"><div class="lab">CPUの強さ</div>' + seg('diff', [['easy', 'やさしい'], ['normal', 'ふつう'], ['hard', 'つよい']], s.diff) + '</div>' : '');
@@ -193,13 +193,15 @@ function renderBoard() {
   const my = curIsHuman() && ui.view === TQ.currentPlayer(g);
   const ev = TQ.evaluate(cards, g.mode, g.phase === 'over', g.quartic);
   const cand = my && ui.sel != null ? TQ.candidateEdges(cards, g.quartic) : [];
-  const P = k => TQ.nodePos(k, L, g.quartic);
+  const G = TQ.geometry(cards, g.quartic, L);
+  const pc = my && ui.edge && selectedParticle() ? G.cand(ui.edge) : null; // 貼る前のプレビュー位置
+  const P = k => G.P(k) || (pc && k === pc.newKey ? pc.pn : null);
 
   // 表示範囲
   const pts = [];
   cards.forEach(c => { pts.push(P(c.a), P(c.b)); });
-  cand.forEach(e => { const [a, b] = TQ.splitEdge(e); pts.push(P(a), P(b)); });
-  if (!pts.length) pts.push(P('0,0'), P('1,0'));
+  cand.forEach(e => { const c = G.cand(e); pts.push(c.pa, c.pb); });
+  if (!pts.length) pts.push({ x: 0, y: 0 }, { x: L, y: 0 });
   let x0 = Math.min(...pts.map(p => p.x)), x1 = Math.max(...pts.map(p => p.x));
   let y0 = Math.min(...pts.map(p => p.y)), y1 = Math.max(...pts.map(p => p.y));
   const pad = L * 0.9;
@@ -217,7 +219,7 @@ function renderBoard() {
 
   // 候補辺
   cand.forEach(e => {
-    const [a, b] = TQ.splitEdge(e), pa = P(a), pb = P(b);
+    const c = G.cand(e), pa = c.pa, pb = c.pb;
     const on = ui.edge === e;
     s += '<g class="cand' + (on ? ' on' : '') + '" data-edge="' + e + '"><line x1="' + pa.x.toFixed(1) + '" y1="' + pa.y.toFixed(1) + '" x2="' + pb.x.toFixed(1) + '" y2="' + pb.y.toFixed(1) + '"/>' +
       '<circle cx="' + ((pa.x + pb.x) / 2).toFixed(1) + '" cy="' + ((pa.y + pb.y) / 2).toFixed(1) + '" r="9"/>' +
@@ -232,8 +234,8 @@ function renderBoard() {
 
   // プレビュー
   const sp = selectedParticle();
-  if (my && ui.edge && sp) {
-    const [a, b] = TQ.splitEdge(ui.edge), pa = P(a), pb = P(b);
+  if (pc) {
+    const pa = pc.pa, pb = pc.pb;
     s += '<g class="ghost">' + lineSvg(sp, pa.x, pa.y, pb.x, pb.y, ui.dir) + bubble(sp, lerp(pa, pb, T_LABEL).x, lerp(pa, pb, T_LABEL).y) + '</g>';
   }
 
@@ -341,9 +343,9 @@ function renderGuide() {
     rows.map(r => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td><td>' + r[3] + '</td></tr>').join('') + '</tbody></table></div>' +
     '<h3>4点結合(「3点+4点結合」モード)</h3><div class="tw"><table><thead><tr><th>頂点</th><th>名前</th><th>点</th><th>条件</th></tr></thead><tbody>' +
     rows4.map(r => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td><td>' + r[3] + '</td></tr>').join('') + '</tbody></table></div>' +
-    '<p class="note">4点モードは正方格子です。標準模型にはフェルミオンを含む4点結合がないので、電子やクォークの線が3本以上集まる頂点は無効です。3本が集まった時点で3点結合として無効でも、あと1本で4点結合になるなら「…」(未完成)になります。</p>' +
+    '<p class="note">4点モードでは、線の本数に応じて頂点の角度が変わって見えます(3本以下は120°、4本は90°)。標準模型にはフェルミオンを含む4点結合がないので、電子やクォークの線が3本以上集まる頂点は無効です。3本が集まった時点で3点結合として無効でも、あと1本で4点結合になるなら「…」(未完成)になります。</p>' +
     '<p class="note">2本だけの未完成の頂点は、あと1本(4点モードでは最大2本)で有効にできるなら0点(…)、どの粒子を足しても有効にならないなら終了時に−1点(!)です。</p>' +
-    '<h3>ボーナス</h3><ul><li><b>ループ</b>:閉じた最小の輪(蜂の巣格子は六角形6枚、正方格子は正方形4枚)で、すべての頂点が有効(または完成可能)なら +2点。</li>' +
+    '<h3>ボーナス</h3><ul><li><b>ループ</b>:閉じた最小の輪(3点モードは六角形6枚。4点モードは正方形4枚と六角形6枚。六角形の中央に線を足して正方形2つにした形は、正方形として数えます)で、すべての頂点が有効(または完成可能)なら1つにつき +2点。</li>' +
     TQ.MISSIONS.map(m => '<li><b>' + m.name + '</b>(+' + m.bonus + '点):' + m.desc + '</li>').join('') + '</ul>' +
     '<h3>CKM行列(Wが世代をまたぐ強さ)</h3><div class="tw"><table class="ckm"><thead><tr><th></th><th>d</th><th>s</th><th>b</th></tr></thead><tbody>' + ckmRows + '</tbody></table></div>' +
     '<h3>粒子一覧</h3><div class="tw"><table><thead><tr><th></th><th>名前</th><th>電荷</th><th>質量</th></tr></thead><tbody>' + part + '</tbody></table></div>' +

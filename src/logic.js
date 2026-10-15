@@ -226,6 +226,105 @@ function nodePos(key, L, q) {
   return { x: i * SQ3_2 * L, y: y * L };
 }
 
+/* ------------------------------------------------------------------ */
+/*  描画用の配置                                                        */
+/*  3点モード: 蜂の巣格子そのまま。                                       */
+/*  4点モード: 正方格子を土台に、頂点の本数に応じて線の角度を                */
+/*  3本以下なら120°、4本なら90°ずつ開くよう緩和計算で配置する。            */
+/* ------------------------------------------------------------------ */
+const DIRS = [[1, 0], [0, 1], [-1, 0], [0, -1]]; // 東・南・西・北(画面上で時計回り=角度が増える向き)
+function dirIdx(from, to) {
+  const [i, j] = parseNode(from), [k, l] = parseNode(to);
+  return DIRS.findIndex(d => d[0] === k - i && d[1] === l - j);
+}
+const TAU = Math.PI * 2;
+const wrap2 = a => ((a % TAU) + TAU) % TAU;
+const wrapPi = a => { a = wrap2(a); return a > Math.PI ? a - TAU : a; };
+
+function neighborMap(cards) {
+  const adj = new Map();
+  const add = (x, y) => { if (!adj.has(x)) adj.set(x, []); adj.get(x).push(y); };
+  cards.forEach(c => { add(c.a, c.b); add(c.b, c.a); });
+  adj.forEach((ns, n) => ns.sort((p, q) => dirIdx(n, p) - dirIdx(n, q)));
+  return adj;
+}
+
+function relaxLayout(cards, L) {
+  const adj = neighborMap(cards), pos = {};
+  if (!cards.length) { pos['0,0'] = { x: 0, y: 0 }; return pos; }
+  adj.forEach((_, k) => { pos[k] = nodePos(k, L, true); });
+  // 角度の制約: [中心, 隣a, 隣b, 目標角(aからbへ角度が増える向き)]
+  const angles = [];
+  adj.forEach((ns, n) => {
+    const m = ns.length;
+    if (m === 2) {
+      const diff = dirIdx(n, ns[1]) - dirIdx(n, ns[0]);
+      if (diff === 1) angles.push([n, ns[0], ns[1], TAU / 3]);
+      else if (diff === 3) angles.push([n, ns[0], ns[1], TAU * 2 / 3]);
+    } else if (m >= 3) {
+      for (let k = 0; k < m; k++) angles.push([n, ns[k], ns[(k + 1) % m], TAU / m]);
+    }
+  });
+  for (let it = 0; it < 600; it++) {
+    const dp = {}; Object.keys(pos).forEach(k => { dp[k] = { x: 0, y: 0 }; });
+    cards.forEach(c => {
+      const pa = pos[c.a], pb = pos[c.b];
+      const dx = pb.x - pa.x, dy = pb.y - pa.y, d = Math.hypot(dx, dy) || 1e-6, f = (d - L) / 2 * 0.25;
+      dp[c.a].x += dx / d * f; dp[c.a].y += dy / d * f; dp[c.b].x -= dx / d * f; dp[c.b].y -= dy / d * f;
+    });
+    angles.forEach(([n, a, b, target]) => {
+      const pn = pos[n], pa = pos[a], pb = pos[b];
+      const aa = Math.atan2(pa.y - pn.y, pa.x - pn.x), ab = Math.atan2(pb.y - pn.y, pb.x - pn.x);
+      const err = wrapPi(target - wrap2(ab - aa));
+      // 角度の勾配に沿って動かす。中心にも反作用を与え、全体が回転・平行移動しないようにする
+      const ra = Math.hypot(pa.x - pn.x, pa.y - pn.y) || 1e-6, rb = Math.hypot(pb.x - pn.x, pb.y - pn.y) || 1e-6;
+      const c = err * L * 0.06;
+      const gb = { x: -Math.sin(ab) * L / rb * c, y: Math.cos(ab) * L / rb * c };
+      const ga = { x: Math.sin(aa) * L / ra * c, y: -Math.cos(aa) * L / ra * c };
+      dp[b].x += gb.x; dp[b].y += gb.y; dp[a].x += ga.x; dp[a].y += ga.y;
+      dp[n].x -= gb.x + ga.x; dp[n].y -= gb.y + ga.y;
+    });
+    Object.keys(pos).forEach(k => {
+      const m = Math.hypot(dp[k].x, dp[k].y), s = m > L * 0.2 ? L * 0.2 / m : 1; // 1回の移動量に上限(発散防止)
+      pos[k].x += dp[k].x * s; pos[k].y += dp[k].y * s;
+    });
+  }
+  return pos;
+}
+
+// 新しい線を、anchor から other へ伸ばすときの向き(ラジアン)
+function slotAngle(anchor, other, pos, adj) {
+  const d0 = dirIdx(anchor, other);
+  const ex = (adj.get(anchor) || []).map(n => ({ d: dirIdx(anchor, n), ang: Math.atan2(pos[n].y - pos[anchor].y, pos[n].x - pos[anchor].x) }));
+  if (!ex.length) return d0 * Math.PI / 2;
+  if (ex.length === 1) return ex[0].ang + [0, TAU / 3, Math.PI, TAU * 2 / 3][((d0 - ex[0].d) % 4 + 4) % 4];
+  const below = ex.filter(e => e.d < d0), above = ex.filter(e => e.d > d0);
+  const pred = below.length ? below[below.length - 1] : ex[ex.length - 1];
+  const succ = above.length ? above[0] : ex[0];
+  let gap = wrap2(succ.ang - pred.ang); if (gap < 1e-6) gap = TAU;
+  return pred.ang + gap / 2;
+}
+
+// 描画用の座標: P(節点) と cand(辺) (候補辺の両端と、新しい節点の位置)
+function geometry(cards, q, L) {
+  if (!q) {
+    const P = k => nodePos(k, L, false);
+    return { P, cand: e => { const [a, b] = splitEdge(e); return { a, b, pa: P(a), pb: P(b), newKey: null }; } };
+  }
+  const pos = relaxLayout(cards, L), adj = neighborMap(cards);
+  return {
+    P: k => pos[k],
+    cand: e => {
+      const [a, b] = splitEdge(e);
+      if (pos[a] && pos[b]) return { a, b, pa: pos[a], pb: pos[b], newKey: null };
+      const anchor = pos[a] ? a : b, other = pos[a] ? b : a;
+      const ang = slotAngle(anchor, other, pos, adj);
+      const pn = { x: pos[anchor].x + L * Math.cos(ang), y: pos[anchor].y + L * Math.sin(ang) };
+      return { a, b, pa: pos[a] || pn, pb: pos[b] || pn, newKey: other, pn };
+    }
+  };
+}
+
 function buildNodes(cards) {
   const m = new Map();
   const add = (n, e) => { if (!m.has(n)) m.set(n, []); m.get(n).push(e); };
@@ -322,18 +421,26 @@ function evaluate(cards, modeKey, final, q) {
     let mini = 1e9, maxi = -1e9, minj = 1e9, maxj = -1e9;
     nodes.forEach((_, n) => { const [i, j] = parseNode(n); mini = Math.min(mini, i); maxi = Math.max(maxi, i); minj = Math.min(minj, j); maxj = Math.max(maxj, j); });
     for (let i = mini - 2; i <= maxi; i++) {
-      for (let j = minj - 1; j <= maxj; j++) {
-        let ring;
-        if (q) ring = [nk(i,j), nk(i+1,j), nk(i+1,j+1), nk(i,j+1)];
-        else {
+      for (let j = minj - 2; j <= maxj; j++) {
+        const rings = [];
+        if (q) {
+          rings.push([nk(i,j), nk(i+1,j), nk(i+1,j+1), nk(i,j+1)]);
+          // 六角形: 3x2 / 2x3 格子点の外周。中央の辺が貼られていれば正方形2つとして数える
+          if (!occ.has(edgeKey(nk(i+1,j), nk(i+1,j+1))))
+            rings.push([nk(i,j), nk(i+1,j), nk(i+2,j), nk(i+2,j+1), nk(i+1,j+1), nk(i,j+1)]);
+          if (!occ.has(edgeKey(nk(i,j+1), nk(i+1,j+1))))
+            rings.push([nk(i,j), nk(i+1,j), nk(i+1,j+1), nk(i+1,j+2), nk(i,j+2), nk(i,j+1)]);
+        } else {
           if (((i + j) % 2 + 2) % 2 !== 0) continue;
-          ring = [nk(i,j), nk(i+1,j), nk(i+2,j), nk(i+2,j+1), nk(i+1,j+1), nk(i,j+1)];
+          rings.push([nk(i,j), nk(i+1,j), nk(i+2,j), nk(i+2,j+1), nk(i+1,j+1), nk(i,j+1)]);
         }
-        let all = true;
-        for (let k = 0; k < ring.length && all; k++) all = occ.has(edgeKey(ring[k], ring[(k+1)%ring.length]));
-        if (!all) continue;
-        const good = ring.every(n => { const st = info.get(n).status; return st === 'valid' || st === 'open'; });
-        if (good) loops.push(ring);
+        rings.forEach(ring => {
+          let all = true;
+          for (let k = 0; k < ring.length && all; k++) all = occ.has(edgeKey(ring[k], ring[(k+1)%ring.length]));
+          if (!all) return;
+          const good = ring.every(n => { const st = info.get(n).status; return st === 'valid' || st === 'open'; });
+          if (good) loops.push(ring);
+        });
       }
     }
   }
@@ -482,7 +589,7 @@ function cpuMove(s) {
 return {
   FERMIONS, BOSONS, PARTICLES, BY_ID, MODES, MISSIONS, TAG_LABEL, CKM_PTS, CKM_VAL, YUKAWA_PTS,
   isDirected, universe, validateVertex, completable, evaluate, candidateEdges, edgeKey, splitEdge,
-  neighbors, nodePos, parseNode, buildNodes, newGame, applyPick, applySecret, currentPlayer, cpuMove, bestPlacement, shuffle
+  neighbors, nodePos, geometry, relaxLayout, parseNode, buildNodes, newGame, applyPick, applySecret, currentPlayer, cpuMove, bestPlacement, shuffle
 };
 })();
 if (typeof module !== 'undefined') module.exports = TQ;
