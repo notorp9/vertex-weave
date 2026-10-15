@@ -1,4 +1,4 @@
-"""src/ の template.html・logic.js・ui.js を1つのHTMLにまとめる。出力: dist/index.html"""
+"""src/ の template.html・logic.js・ui.js を1つのHTMLにまとめる。出力: index.html(GitHub Pages がルートから配信)"""
 from pathlib import Path
 
 root = Path(__file__).resolve().parent
@@ -9,7 +9,6 @@ logic, ui = read('logic.js'), read('ui.js')
 assert '</script>' not in logic and '</script>' not in ui
 
 html = read('template.html').replace('/*LOGIC*/', logic).replace('/*UI*/', ui)
-out = root / 'dist' / 'index.html'
-out.parent.mkdir(exist_ok=True)
+out = root / 'index.html'
 out.write_text(html, encoding='utf-8')
 print(out, len(html))

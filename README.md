@@ -5,10 +5,10 @@
 ## ビルド
 
 ```bash
-python3 build.py   # dist/index.html を生成
+python3 build.py   # index.html を生成
 ```
 
-`dist/index.html` をブラウザで開けば遊べます(外部ライブラリなし)。
+`index.html` をブラウザで開けば遊べます(外部ライブラリなし)。
 
 ## 構成
 
