@@ -45,7 +45,7 @@ const MODES = {
   },
   full: {
     label: 'フル(3世代・全結合)',
-    desc: '6クォーク・3荷電レプトン・3ニュートリノ。CKM混合・湯川結合・ループ結合まで含みます。',
+    desc: '6クォーク・3荷電レプトン・3ニュートリノ。CKM混合・湯川結合まで含みます。',
     fermions: ['u','d','c','s','t','b','e','mu','tau','ve','vm','vt'],
     deck: { fermion: 3, gamma: 6, gluon: 8, W: 9, Z: 7, H: 5 }
   }
@@ -88,9 +88,6 @@ const TAG_LABEL = {
   'HWW': 'ヒッグス–W結合',
   'HZZ': 'ヒッグス–Z結合',
   'HHH': 'ヒッグス3点自己結合',
-  'Hγγ': 'H→γγ(ループ)',
-  'Hgg': 'H→gg(ループ)',
-  'HZγ': 'H→Zγ(ループ)',
   'gggg': 'グルーオン4点結合',
   'WWWW': 'WWWW(4点結合)',
   'WWγγ': 'WWγγ(4点結合)',
@@ -179,9 +176,8 @@ function validateVertex(ends) {
   if (W === 2 && H === 1) return { ok: true, pts: 5, tag: 'HWW', why: '' };
   if (Z === 2 && H === 1) return { ok: true, pts: 5, tag: 'HZZ', why: '' };
   if (H === 3) return { ok: true, pts: 6, tag: 'HHH', why: '' };
-  if (H === 1 && A === 2) return { ok: true, pts: 6, tag: 'Hγγ', why: '' };
-  if (H === 1 && g === 2) return { ok: true, pts: 5, tag: 'Hgg', why: '' };
-  if (H === 1 && Z === 1 && A === 1) return { ok: true, pts: 6, tag: 'HZγ', why: '' };
+  if (H === 1 && ((A === 2) || (g === 2) || (Z === 1 && A === 1)))
+    return BAD('H–γγ・H–gg・H–Zγ は、フェルミオンの輪(ループ)を通ってはじめて生じる結合で、1つの頂点(ツリーレベル)にはありません。');
   return BAD('標準模型に存在しない結合です。');
 }
 

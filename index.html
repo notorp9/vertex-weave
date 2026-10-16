@@ -251,7 +251,7 @@ const MODES = {
   },
   full: {
     label: 'フル(3世代・全結合)',
-    desc: '6クォーク・3荷電レプトン・3ニュートリノ。CKM混合・湯川結合・ループ結合まで含みます。',
+    desc: '6クォーク・3荷電レプトン・3ニュートリノ。CKM混合・湯川結合まで含みます。',
     fermions: ['u','d','c','s','t','b','e','mu','tau','ve','vm','vt'],
     deck: { fermion: 3, gamma: 6, gluon: 8, W: 9, Z: 7, H: 5 }
   }
@@ -294,9 +294,6 @@ const TAG_LABEL = {
   'HWW': 'ヒッグス–W結合',
   'HZZ': 'ヒッグス–Z結合',
   'HHH': 'ヒッグス3点自己結合',
-  'Hγγ': 'H→γγ(ループ)',
-  'Hgg': 'H→gg(ループ)',
-  'HZγ': 'H→Zγ(ループ)',
   'gggg': 'グルーオン4点結合',
   'WWWW': 'WWWW(4点結合)',
   'WWγγ': 'WWγγ(4点結合)',
@@ -385,9 +382,8 @@ function validateVertex(ends) {
   if (W === 2 && H === 1) return { ok: true, pts: 5, tag: 'HWW', why: '' };
   if (Z === 2 && H === 1) return { ok: true, pts: 5, tag: 'HZZ', why: '' };
   if (H === 3) return { ok: true, pts: 6, tag: 'HHH', why: '' };
-  if (H === 1 && A === 2) return { ok: true, pts: 6, tag: 'Hγγ', why: '' };
-  if (H === 1 && g === 2) return { ok: true, pts: 5, tag: 'Hgg', why: '' };
-  if (H === 1 && Z === 1 && A === 1) return { ok: true, pts: 6, tag: 'HZγ', why: '' };
+  if (H === 1 && ((A === 2) || (g === 2) || (Z === 1 && A === 1)))
+    return BAD('H–γγ・H–gg・H–Zγ は、フェルミオンの輪(ループ)を通ってはじめて生じる結合で、1つの頂点(ツリーレベル)にはありません。');
   return BAD('標準模型に存在しない結合です。');
 }
 
@@ -825,7 +821,7 @@ function infoLines(p) {
     out.push('矢印は粒子の流れ。同じ線で向きを逆にすると反粒子として読めます。');
   } else {
     const t = {
-      'γ': '電磁力を運ぶ。電荷を持つフェルミオンとW、ヒッグス(ループ経由)と結合。',
+      'γ': '電磁力を運ぶ。電荷を持つフェルミオンとW、ヒッグスとはツリーレベルでは結合しません(輪=ループを通した結合は今後対応予定)。',
       g: '強い力を運ぶ。クォークと、グルーオン同士(ggg)で結合。',
       W: '荷電カレントを運ぶ。電荷が±1。矢印は負電荷の流れ。γ・Z・ヒッグスとも結合。',
       Z: '中性カレントを運ぶ。すべてのフェルミオンと結合。WW・ヒッグスとも結合。',
@@ -1124,9 +1120,7 @@ function renderGuide() {
     ['g g g', T['ggg'], '3', ''],
     ['W W γ / W W Z', T['WWγ'], '4', '2本のWの矢印は逆向き'],
     ['H W W / H Z Z', T['HWW'], '5', ''],
-    ['H H H', T['HHH'], '6', ''],
-    ['H γ γ / H Z γ', 'ループ結合', '6', '粒子の循環を1つの頂点として扱う'],
-    ['H g g', 'ループ結合', '5', '']
+    ['H H H', T['HHH'], '6', '']
   ];
   const rows4 = [
     ['g g g g', T['gggg'], '4', ''],
@@ -1153,7 +1147,7 @@ function renderGuide() {
     TQ.MISSIONS.map(m => '<li><b>' + m.name + '</b>(+' + m.bonus + '点):' + m.desc + '</li>').join('') + '</ul>' +
     '<h3>CKM行列(Wが世代をまたぐ強さ)</h3><div class="tw"><table class="ckm"><thead><tr><th></th><th>d</th><th>s</th><th>b</th></tr></thead><tbody>' + ckmRows + '</tbody></table></div>' +
     '<h3>粒子一覧</h3><div class="tw"><table><thead><tr><th></th><th>名前</th><th>電荷</th><th>質量</th></tr></thead><tbody>' + part + '</tbody></table></div>' +
-    '<h3>このゲームで省いているもの</h3><p class="note">4点結合は「3点+4点結合」モードだけで扱います(フェルミオンを含む4点結合は標準模型の基本結合にありません)。ニュートリノ質量と振動、CP対称性の破れ、色荷の細かい流れ、時間順序は扱いません。ヒッグスのループ結合(γγ・Zγ・gg)は、1つの頂点にまとめた近似です。</p>' +
+    '<h3>このゲームで省いているもの</h3><p class="note">4点結合は「3点+4点結合」モードだけで扱います(フェルミオンを含む4点結合は標準模型の基本結合にありません)。ニュートリノ質量と振動、CP対称性の破れ、色荷の細かい流れ、時間順序は扱いません。ヒッグスのループ結合(γγ・Zγ・gg)は、ツリーレベルの頂点としては扱いません。</p>' +
     '<p class="note">素粒子ファインマン図カードゲーム「Tutti Quantum」(EPFL+ECAL Lab / Helvetiq)に着想を得た非公式の個人用プロトタイプです。得点やルールは原作とは異なります。</p>';
 }
 
