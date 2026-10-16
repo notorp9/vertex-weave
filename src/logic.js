@@ -200,125 +200,193 @@ function canExtend(ends, modeKey, q) {
 function completable(ends, modeKey, q) { return canExtend(ends, modeKey, !!q); }
 
 /* ------------------------------------------------------------------ */
-/*  蜂の巣格子 (ブリックウォール表現)                                    */
-/*  ノード (i,j): (i±1,j) と、(i+j)が偶数なら(i,j+1)、奇数なら(i,j-1)    */
+/*  図の構造: 格子を使わない自由なグラフ                                  */
+/*  カード1枚 = 2つの頂点(a, b)を結ぶ線。頂点の名前は 'n0','n1',...        */
+/*  貼るときは、両端それぞれに「既存の頂点」か「新しい端点(null)」を選ぶ。     */
 /* ------------------------------------------------------------------ */
-const SQ3_2 = Math.sqrt(3) / 2;
-const nk = (i, j) => i + ',' + j;
-const parseNode = k => k.split(',').map(Number);
-function neighbors(key, q) {
-  const [i, j] = parseNode(key);
-  if (q) return [nk(i + 1, j), nk(i - 1, j), nk(i, j + 1), nk(i, j - 1)];
-  const v = ((i + j) % 2 + 2) % 2 === 0 ? nk(i, j + 1) : nk(i, j - 1);
-  return [nk(i + 1, j), nk(i - 1, j), v];
-}
-function edgeKey(a, b) { return a < b ? a + '|' + b : b + '|' + a; }
-function splitEdge(k) { return k.split('|'); }
-function nodePos(key, L, q) {
-  const [i, j] = parseNode(key);
-  if (q) return { x: i * L, y: j * L };
-  const even = ((i + j) % 2 + 2) % 2 === 0;
-  const y = 1.5 * j + (even ? 0 : -0.5);
-  return { x: i * SQ3_2 * L, y: y * L };
-}
-
-/* ------------------------------------------------------------------ */
-/*  描画用の配置                                                        */
-/*  3点モード: 蜂の巣格子そのまま。                                       */
-/*  4点モード: 正方格子を土台に、頂点の本数に応じて線の角度を                */
-/*  3本以下なら120°、4本なら90°ずつ開くよう緩和計算で配置する。            */
-/* ------------------------------------------------------------------ */
-const DIRS = [[1, 0], [0, 1], [-1, 0], [0, -1]]; // 東・南・西・北(画面上で時計回り=角度が増える向き)
-function dirIdx(from, to) {
-  const [i, j] = parseNode(from), [k, l] = parseNode(to);
-  return DIRS.findIndex(d => d[0] === k - i && d[1] === l - j);
-}
+const NEW_A = '__newA', NEW_B = '__newB'; // 貼る前のプレビューで、まだ名前のない端点
+const edgeKey = (a, b) => a < b ? a + '|' + b : b + '|' + a;
+const maxDeg = q => q ? 4 : 3;
 const TAU = Math.PI * 2;
 const wrap2 = a => ((a % TAU) + TAU) % TAU;
 const wrapPi = a => { a = wrap2(a); return a > Math.PI ? a - TAU : a; };
 
-function neighborMap(cards) {
+function adjacency(cards) {
   const adj = new Map();
   const add = (x, y) => { if (!adj.has(x)) adj.set(x, []); adj.get(x).push(y); };
   cards.forEach(c => { add(c.a, c.b); add(c.b, c.a); });
-  adj.forEach((ns, n) => ns.sort((p, q) => dirIdx(n, p) - dirIdx(n, q)));
   return adj;
 }
+function degrees(cards) {
+  const d = new Map();
+  cards.forEach(c => { d.set(c.a, (d.get(c.a) || 0) + 1); d.set(c.b, (d.get(c.b) || 0) + 1); });
+  return d;
+}
+function freeNodes(cards, q) {
+  const deg = degrees(cards);
+  return Array.from(deg.keys()).filter(n => deg.get(n) < maxDeg(q));
+}
+// a と b を結んだあとも、線を足せる頂点が残るか(残らないと、次のカードを置く場所がなくなる)
+function closeOk(cards, q, a, b) {
+  const deg = degrees(cards), max = maxDeg(q);
+  for (const [n, d] of deg) if (d + (n === a || n === b ? 1 : 0) < max) return true;
+  return false;
+}
+// 頂点 a から、もう一方の端として選べる既存の頂点(空きがあり、すでに隣り合っていない頂点)
+function targetsFor(cards, q, a) {
+  const adj = adjacency(cards), nb = new Set(adj.get(a) || []);
+  return freeNodes(cards, q).filter(n => n !== a && !nb.has(n) && closeOk(cards, q, a, n));
+}
 
-function relaxLayout(cards, L) {
-  const adj = neighborMap(cards), pos = {};
-  if (!cards.length) { pos['0,0'] = { x: 0, y: 0 }; return pos; }
-  adj.forEach((_, k) => { pos[k] = nodePos(k, L, true); });
-  // 角度の制約: [中心, 隣a, 隣b, 目標角(aからbへ角度が増える向き)]
-  const angles = [];
-  adj.forEach((ns, n) => {
-    const m = ns.length;
-    if (m === 2) {
-      const diff = dirIdx(n, ns[1]) - dirIdx(n, ns[0]);
-      if (diff === 1) angles.push([n, ns[0], ns[1], TAU / 3]);
-      else if (diff === 3) angles.push([n, ns[0], ns[1], TAU * 2 / 3]);
-    } else if (m >= 3) {
-      for (let k = 0; k < m; k++) angles.push([n, ns[k], ns[(k + 1) % m], TAU / m]);
-    }
+function bfsDist(adj, s) {
+  const d = new Map([[s, 0]]), qu = [s];
+  while (qu.length) { const x = qu.shift(); (adj.get(x) || []).forEach(y => { if (!d.has(y)) { d.set(y, d.get(x) + 1); qu.push(y); } }); }
+  return d;
+}
+
+// 置き方の候補 [{a, b}] (null は新しい端点)。maxDist を指定すると、閉じる辺は輪が maxDist+1 枚以内のものだけ
+function placements(cards, q, maxDist) {
+  if (!cards.length) return [{ a: null, b: null }];
+  const adj = adjacency(cards), free = freeNodes(cards, q), out = [];
+  free.forEach(n => out.push({ a: n, b: null }));
+  free.forEach(n => {
+    const dist = maxDist ? bfsDist(adj, n) : null;
+    targetsFor(cards, q, n).forEach(m => {
+      if (n < m && (!dist || dist.get(m) <= maxDist)) out.push({ a: n, b: m });
+    });
   });
-  for (let it = 0; it < 600; it++) {
-    const dp = {}; Object.keys(pos).forEach(k => { dp[k] = { x: 0, y: 0 }; });
+  return out;
+}
+
+// 閉じた輪(弦のない閉路)を長さ 3〜maxLen で列挙。各輪は頂点を順に並べた配列
+function chordlessCycles(cards, maxLen) {
+  maxLen = maxLen || 6;
+  const adj = adjacency(cards), nodes = Array.from(adj.keys()).sort();
+  const idx = new Map(nodes.map((n, i) => [n, i])), eset = new Set(cards.map(c => edgeKey(c.a, c.b)));
+  const seen = new Set(), out = [];
+  const dfs = (s, path) => {
+    const cur = path[path.length - 1];
+    adj.get(cur).forEach(w => {
+      if (w === s && path.length >= 3 && idx.get(path[1]) < idx.get(cur)) {
+        let inner = 0;
+        for (let i = 0; i < path.length; i++) for (let j = i + 1; j < path.length; j++) if (eset.has(edgeKey(path[i], path[j]))) inner++;
+        const key = path.slice().sort().join('|');
+        if (inner === path.length && !seen.has(key)) { seen.add(key); out.push(path.slice()); }
+      } else if (idx.get(w) > idx.get(s) && path.indexOf(w) < 0 && path.length < maxLen) {
+        path.push(w); dfs(s, path); path.pop();
+      }
+    });
+  };
+  nodes.forEach(s => dfs(s, [s]));
+  return out;
+}
+
+/* ------------------------------------------------------------------ */
+/*  描画用の配置                                                        */
+/*  線の長さをそろえ、頂点まわりの角度を 3本以下なら120°、4本なら90° に。    */
+/*  閉じた輪は正多角形の角(三角形60°・正方形90°・五角形108°・六角形120°)に。 */
+/* ------------------------------------------------------------------ */
+const LAYOUT_L = 88;
+
+// anchor から新しい線を伸ばす向き: 既存の線のいちばん広い隙間の真ん中
+function slotAngle(anchor, pos, adj) {
+  const angs = (adj.get(anchor) || []).filter(n => pos[n]).map(n => Math.atan2(pos[n].y - pos[anchor].y, pos[n].x - pos[anchor].x)).sort((x, y) => x - y);
+  if (!angs.length) return 0;
+  if (angs.length === 1) return angs[0] + TAU / 3;
+  let best = 0, bestGap = -1;
+  for (let i = 0; i < angs.length; i++) {
+    const gap = wrap2(angs[(i + 1) % angs.length] - angs[i]) || TAU;
+    if (gap > bestGap) { bestGap = gap; best = angs[i] + gap / 2; }
+  }
+  return best;
+}
+
+// prev: 前回の座標({節点: {x,y}})。新しい節点は、つながる節点のそばに置いてから緩和計算する
+function layout(cards, prev, L) {
+  L = L || LAYOUT_L;
+  const adj = adjacency(cards), nodes = Array.from(adj.keys()), pos = {};
+  if (!nodes.length) return pos;
+  nodes.forEach(n => { if (prev && prev[n]) pos[n] = { x: prev[n].x, y: prev[n].y }; });
+  if (!nodes.some(n => pos[n])) pos[nodes[0]] = { x: 0, y: 0 };
+  for (let guard = 0; guard < nodes.length * 2 && nodes.some(n => !pos[n]); guard++) {
+    nodes.forEach(n => {
+      if (pos[n]) return;
+      const nb = adj.get(n).find(m => pos[m]);
+      if (!nb) return;
+      const ang = slotAngle(nb, pos, adj);
+      pos[n] = { x: pos[nb].x + L * Math.cos(ang), y: pos[nb].y + L * Math.sin(ang) };
+    });
+  }
+  nodes.forEach(n => { if (!pos[n]) pos[n] = { x: 0, y: 0 }; });
+
+  // 新しくできた輪は、まず正多角形として置き直す(長い鎖を閉じたときに、緩和計算が絡まらないように)
+  const allCycles = chordlessCycles(cards, 6).sort((x, y) => x.length - y.length);
+  allCycles.forEach(c => {
+    const k = c.length;
+    let dev = 0;
+    for (let i = 0; i < k; i++) dev = Math.max(dev, Math.abs(Math.hypot(pos[c[i]].x - pos[c[(i + 1) % k]].x, pos[c[i]].y - pos[c[(i + 1) % k]].y) - L) / L);
+    if (dev <= 0.35) return;
+    const cx = c.reduce((t, n) => t + pos[n].x, 0) / k, cy = c.reduce((t, n) => t + pos[n].y, 0) / k, R = L / (2 * Math.sin(Math.PI / k));
+    let best = null;
+    [1, -1].forEach(o => { for (let r = 0; r < k; r++) {
+      let cost = 0;
+      for (let i = 0; i < k; i++) { const ang = TAU * (((o * i + r) % k + k) % k) / k; cost += Math.pow(pos[c[i]].x - cx - R * Math.cos(ang), 2) + Math.pow(pos[c[i]].y - cy - R * Math.sin(ang), 2); }
+      if (!best || cost < best.cost) best = { cost, o, r };
+    } });
+    c.forEach((n, i) => { const ang = TAU * (((best.o * i + best.r) % k + k) % k) / k; pos[n] = { x: cx + R * Math.cos(ang), y: cy + R * Math.sin(ang) }; });
+  });
+
+  const cyc = new Map();
+  chordlessCycles(cards, 6).forEach(c => c.forEach(n => { if (!cyc.has(n)) cyc.set(n, []); cyc.get(n).push(c); }));
+
+  // 各頂点の「隣り合う線どうしの角度」の目標値を、現在の向きの並びから決める
+  const gapTargets = (n, ns, ang) => {
+    const m = ns.length, cs = cyc.get(n);
+    if (cs && cs.length === 1) {
+      const c = cs[0], k = c.length, i = c.indexOf(n);
+      const iu = ns.indexOf(c[(i + k - 1) % k]), iv = ns.indexOf(c[(i + 1) % k]);
+      const a1 = wrap2(ang[iv] - ang[iu]);
+      const start = a1 <= TAU - a1 ? iu : iv, span = a1 <= TAU - a1 ? (iv - iu + m) % m : (iu - iv + m) % m;
+      const inner = Math.PI * (k - 2) / k, t = [];
+      for (let g = 0; g < m; g++) t.push(((g - start + m) % m) < span ? inner / span : (TAU - inner) / (m - span));
+      return t;
+    }
+    if (m === 2) { const g = wrap2(ang[1] - ang[0]); return g < Math.PI ? [TAU / 3, TAU * 2 / 3] : [TAU * 2 / 3, TAU / 3]; }
+    return ns.map(() => TAU / m);
+  };
+
+  for (let it = 0; it < 1200; it++) {
+    const dp = {}; nodes.forEach(k => { dp[k] = { x: 0, y: 0 }; });
     cards.forEach(c => {
       const pa = pos[c.a], pb = pos[c.b];
       const dx = pb.x - pa.x, dy = pb.y - pa.y, d = Math.hypot(dx, dy) || 1e-6, f = (d - L) / 2 * 0.25;
       dp[c.a].x += dx / d * f; dp[c.a].y += dy / d * f; dp[c.b].x -= dx / d * f; dp[c.b].y -= dy / d * f;
     });
-    angles.forEach(([n, a, b, target]) => {
-      const pn = pos[n], pa = pos[a], pb = pos[b];
-      const aa = Math.atan2(pa.y - pn.y, pa.x - pn.x), ab = Math.atan2(pb.y - pn.y, pb.x - pn.x);
-      const err = wrapPi(target - wrap2(ab - aa));
-      // 角度の勾配に沿って動かす。中心にも反作用を与え、全体が回転・平行移動しないようにする
-      const ra = Math.hypot(pa.x - pn.x, pa.y - pn.y) || 1e-6, rb = Math.hypot(pb.x - pn.x, pb.y - pn.y) || 1e-6;
-      const c = err * L * 0.06;
-      const gb = { x: -Math.sin(ab) * L / rb * c, y: Math.cos(ab) * L / rb * c };
-      const ga = { x: Math.sin(aa) * L / ra * c, y: -Math.cos(aa) * L / ra * c };
-      dp[b].x += gb.x; dp[b].y += gb.y; dp[a].x += ga.x; dp[a].y += ga.y;
-      dp[n].x -= gb.x + ga.x; dp[n].y -= gb.y + ga.y;
+    nodes.forEach(n => {
+      const m = adj.get(n).length; if (m < 2) return;
+      const pn = pos[n];
+      const items = adj.get(n).map(k => ({ k, a: Math.atan2(pos[k].y - pn.y, pos[k].x - pn.x) })).sort((x, y) => x.a - y.a);
+      const ns = items.map(e => e.k), ang = items.map(e => e.a), targets = gapTargets(n, ns, ang);
+      for (let g = 0; g < m; g++) {
+        if (m === 2 && g === 1) break; // 2本のときは隙間が2つあるが、片方を整えればもう一方も決まる
+        const a = ns[g], b = ns[(g + 1) % m], aa = ang[g], ab = ang[(g + 1) % m];
+        const err = wrapPi(targets[g] - wrap2(ab - aa));
+        // 角度の勾配に沿って動かす。中心にも反作用を与え、全体が回転・平行移動しないようにする
+        const pa = pos[a], pb = pos[b];
+        const ra = Math.hypot(pa.x - pn.x, pa.y - pn.y) || 1e-6, rb = Math.hypot(pb.x - pn.x, pb.y - pn.y) || 1e-6;
+        const c = err * L * 0.06;
+        const gb = { x: -Math.sin(ab) * L / rb * c, y: Math.cos(ab) * L / rb * c };
+        const ga = { x: Math.sin(aa) * L / ra * c, y: -Math.cos(aa) * L / ra * c };
+        dp[b].x += gb.x; dp[b].y += gb.y; dp[a].x += ga.x; dp[a].y += ga.y;
+        dp[n].x -= gb.x + ga.x; dp[n].y -= gb.y + ga.y;
+      }
     });
-    Object.keys(pos).forEach(k => {
-      const m = Math.hypot(dp[k].x, dp[k].y), s = m > L * 0.2 ? L * 0.2 / m : 1; // 1回の移動量に上限(発散防止)
-      pos[k].x += dp[k].x * s; pos[k].y += dp[k].y * s;
+    nodes.forEach(k => {
+      const m = Math.hypot(dp[k].x, dp[k].y), sc = m > L * 0.2 ? L * 0.2 / m : 1; // 1回の移動量に上限(発散防止)
+      pos[k].x += dp[k].x * sc; pos[k].y += dp[k].y * sc;
     });
   }
   return pos;
-}
-
-// 新しい線を、anchor から other へ伸ばすときの向き(ラジアン)
-function slotAngle(anchor, other, pos, adj) {
-  const d0 = dirIdx(anchor, other);
-  const ex = (adj.get(anchor) || []).map(n => ({ d: dirIdx(anchor, n), ang: Math.atan2(pos[n].y - pos[anchor].y, pos[n].x - pos[anchor].x) }));
-  if (!ex.length) return d0 * Math.PI / 2;
-  if (ex.length === 1) return ex[0].ang + [0, TAU / 3, Math.PI, TAU * 2 / 3][((d0 - ex[0].d) % 4 + 4) % 4];
-  const below = ex.filter(e => e.d < d0), above = ex.filter(e => e.d > d0);
-  const pred = below.length ? below[below.length - 1] : ex[ex.length - 1];
-  const succ = above.length ? above[0] : ex[0];
-  let gap = wrap2(succ.ang - pred.ang); if (gap < 1e-6) gap = TAU;
-  return pred.ang + gap / 2;
-}
-
-// 描画用の座標: P(節点) と cand(辺) (候補辺の両端と、新しい節点の位置)
-function geometry(cards, q, L) {
-  if (!q) {
-    const P = k => nodePos(k, L, false);
-    return { P, cand: e => { const [a, b] = splitEdge(e); return { a, b, pa: P(a), pb: P(b), newKey: null }; } };
-  }
-  const pos = relaxLayout(cards, L), adj = neighborMap(cards);
-  return {
-    P: k => pos[k],
-    cand: e => {
-      const [a, b] = splitEdge(e);
-      if (pos[a] && pos[b]) return { a, b, pa: pos[a], pb: pos[b], newKey: null };
-      const anchor = pos[a] ? a : b, other = pos[a] ? b : a;
-      const ang = slotAngle(anchor, other, pos, adj);
-      const pn = { x: pos[anchor].x + L * Math.cos(ang), y: pos[anchor].y + L * Math.sin(ang) };
-      return { a, b, pa: pos[a] || pn, pb: pos[b] || pn, newKey: other, pn };
-    }
-  };
 }
 
 function buildNodes(cards) {
@@ -330,21 +398,6 @@ function buildNodes(cards) {
     add(c.b, { p: c.p, io: d ? (c.dir === 1 ? 1 : -1) : 0, card: c });
   });
   return m;
-}
-
-function candidateEdges(cards, q) {
-  if (!cards.length) {
-    return neighbors('0,0', q).map(n => edgeKey('0,0', n));
-  }
-  const occ = new Set(cards.map(c => edgeKey(c.a, c.b)));
-  const nodes = new Set();
-  cards.forEach(c => { nodes.add(c.a); nodes.add(c.b); });
-  const out = new Set();
-  nodes.forEach(n => neighbors(n, q).forEach(m => {
-    const k = edgeKey(n, m);
-    if (!occ.has(k)) out.add(k);
-  }));
-  return Array.from(out);
 }
 
 /* ------------------------------------------------------------------ */
@@ -390,6 +443,15 @@ const MISSIONS = [
 ];
 
 /* ------------------------------------------------------------------ */
+/*  ループ結合: ツリーレベルの頂点にはないが、フェルミオンの輪を通して生じる結合   */
+/* ------------------------------------------------------------------ */
+const LOOP_COUPLINGS = {
+  'H,γ,γ': { tag: 'H→γγ', pts: 6, ok: f => f.Q !== 0 },
+  'H,Z,γ': { tag: 'H→Zγ', pts: 6, ok: f => f.Q !== 0 },
+  'H,g,g': { tag: 'H→gg',  pts: 5, ok: f => f.type === 'quark' }
+};
+
+/* ------------------------------------------------------------------ */
 /*  図の評価                                                            */
 /* ------------------------------------------------------------------ */
 function evaluate(cards, modeKey, final, q) {
@@ -410,36 +472,27 @@ function evaluate(cards, modeKey, final, q) {
     }
   });
 
-  // ループ: 閉じた最小の輪(蜂の巣格子=六角形6枚、正方格子=正方形4枚)
-  const loops = [];
-  if (cards.length >= (q ? 4 : 6)) {
-    const occ = new Set(cards.map(c => edgeKey(c.a, c.b)));
-    let mini = 1e9, maxi = -1e9, minj = 1e9, maxj = -1e9;
-    nodes.forEach((_, n) => { const [i, j] = parseNode(n); mini = Math.min(mini, i); maxi = Math.max(maxi, i); minj = Math.min(minj, j); maxj = Math.max(maxj, j); });
-    for (let i = mini - 2; i <= maxi; i++) {
-      for (let j = minj - 2; j <= maxj; j++) {
-        const rings = [];
-        if (q) {
-          rings.push([nk(i,j), nk(i+1,j), nk(i+1,j+1), nk(i,j+1)]);
-          // 六角形: 3x2 / 2x3 格子点の外周。中央の辺が貼られていれば正方形2つとして数える
-          if (!occ.has(edgeKey(nk(i+1,j), nk(i+1,j+1))))
-            rings.push([nk(i,j), nk(i+1,j), nk(i+2,j), nk(i+2,j+1), nk(i+1,j+1), nk(i,j+1)]);
-          if (!occ.has(edgeKey(nk(i,j+1), nk(i+1,j+1))))
-            rings.push([nk(i,j), nk(i+1,j), nk(i+1,j+1), nk(i+1,j+2), nk(i,j+2), nk(i,j+1)]);
-        } else {
-          if (((i + j) % 2 + 2) % 2 !== 0) continue;
-          rings.push([nk(i,j), nk(i+1,j), nk(i+2,j), nk(i+2,j+1), nk(i+1,j+1), nk(i,j+1)]);
-        }
-        rings.forEach(ring => {
-          let all = true;
-          for (let k = 0; k < ring.length && all; k++) all = occ.has(edgeKey(ring[k], ring[(k+1)%ring.length]));
-          if (!all) return;
-          const good = ring.every(n => { const st = info.get(n).status; return st === 'valid' || st === 'open'; });
-          if (good) loops.push(ring);
-        });
-      }
+  // ループ: 閉じた輪(長さ4〜6の弦のない閉路)で、すべての頂点が有効(または完成可能)なら +2点。三角形はループ結合だけで得点する
+  const cycles = cards.length >= 3 ? chordlessCycles(cards, 6) : [];
+  const loops = cycles.filter(ring => ring.length >= 4 && ring.every(n => { const st = info.get(n).status; return st === 'valid' || st === 'open'; }));
+
+  // ループ結合: 同じフェルミオンの線でできた三角形に、3つのボソンが付いた形(H→γγ・Zγ・gg の輪)
+  const loopCouplings = [];
+  cycles.filter(r => r.length === 3).forEach(ring => {
+    if (!ring.every(n => info.get(n).status === 'valid')) return;
+    const rc = cards.filter(c => ring.indexOf(c.a) >= 0 && ring.indexOf(c.b) >= 0);
+    if (rc.length !== 3 || !rc.every(c => c.p.kind === 'f' && c.p.id === rc[0].p.id)) return;
+    const ext = [];
+    for (const n of ring) {
+      const out = nodes.get(n).filter(e => rc.indexOf(e.card) < 0);
+      if (out.length !== 1 || out[0].p.kind === 'f') return;
+      ext.push(out[0].p.kind);
     }
-  }
+    const f = rc[0].p, key = ext.slice().sort().join(',');
+    const lc = LOOP_COUPLINGS[key];
+    if (lc && lc.ok(f)) loopCouplings.push({ tag: lc.tag, pts: lc.pts, ring, f });
+  });
+  const lcPts = loopCouplings.reduce((a, l) => a + l.pts, 0);
 
   // ミッション
   const missions = [];
@@ -458,9 +511,9 @@ function evaluate(cards, modeKey, final, q) {
   const missionPts = missions.reduce((s, id) => s + MISSIONS.find(m => m.id === id).bonus, 0);
 
   const loopPts = loops.length * 2;
-  const total = vpts - invalid + loopPts + missionPts - (final ? badInc : 0);
+  const total = vpts - invalid + loopPts + lcPts + missionPts - (final ? badInc : 0);
   const heur = total + 0.15 * okInc - (final ? 0 : 0.5 * badInc);
-  return { total, heur, vpts, invalid, badInc, okInc, validCount, loops, missions, missionPts, loopPts, info };
+  return { total, heur, vpts, invalid, badInc, okInc, validCount, loops, loopCouplings, lcPts, missions, missionPts, loopPts, info };
 }
 
 /* ------------------------------------------------------------------ */
@@ -488,7 +541,7 @@ function newGame(opts) {
     mode: opts.mode, rnd, solo, np, quartic: !!opts.quartic,
     R: solo ? 12 : (np === 2 ? 8 : np === 3 ? 9 : 8),
     marketSize: solo ? 3 : np + 1,
-    players: opts.players.map(p => ({ name:p.name, human:!!p.human, diff:p.diff || 'normal', cards:[], secret:null })),
+    players: opts.players.map(p => ({ name:p.name, human:!!p.human, diff:p.diff || 'normal', cards:[], nextNode:0, secret:null })),
     deck: buildDeck(opts.mode, rnd),
     market: [], round: 0, first: 0, order: [], pickIdx: 0,
     phase: 'pick', secretIdx: 0, nextId: 1, log: []
@@ -517,15 +570,18 @@ function currentPlayer(s) {
   return -1;
 }
 
-function placeCard(s, pi, p, edge, dir) {
-  const [a, b] = splitEdge(edge);
-  s.players[pi].cards.push({ id: s.nextId++, p, a, b, dir: isDirected(p) ? dir : 1 });
+// a, b: 既存の頂点の名前。null なら新しい頂点を作る
+function placeCard(s, pi, p, a, b, dir) {
+  const pl = s.players[pi], fresh = () => 'n' + (pl.nextNode++);
+  if (a == null) a = fresh();
+  if (b == null) b = fresh();
+  pl.cards.push({ id: s.nextId++, p, a, b, dir: isDirected(p) ? dir : 1 });
 }
 
-function applyPick(s, marketIndex, edge, dir) {
+function applyPick(s, marketIndex, a, b, dir) {
   const pi = s.order[s.pickIdx];
   const p = s.market[marketIndex];
-  placeCard(s, pi, p, edge, dir);
+  placeCard(s, pi, p, a, b, dir);
   s.market.splice(marketIndex, 1);
   s.pickIdx++;
   if (s.solo || s.pickIdx >= s.order.length) {
@@ -535,10 +591,10 @@ function applyPick(s, marketIndex, edge, dir) {
   return { player: pi, p };
 }
 
-function applySecret(s, edge, dir) {
+function applySecret(s, a, b, dir) {
   const pi = s.secretIdx;
   const p = s.players[pi].secret;
-  placeCard(s, pi, p, edge, dir);
+  placeCard(s, pi, p, a, b, dir);
   s.players[pi].secretPlaced = true;
   s.secretIdx++;
   if (s.secretIdx >= s.np) s.phase = 'over';
@@ -551,16 +607,14 @@ function applySecret(s, edge, dir) {
 const NOISE = { easy: 2.2, normal: 0.9, hard: 0.15 };
 
 function bestPlacement(cards, p, modeKey, noise, rnd, final, q) {
-  const edges = candidateEdges(cards, q);
   const base = evaluate(cards, modeKey, final, q).heur;
   let best = null;
-  edges.forEach(e => {
-    const [a, b] = splitEdge(e);
+  placements(cards, q, 5).forEach(pl => {
     const dirs = isDirected(p) ? [1, -1] : [1];
     dirs.forEach(dir => {
-      const nc = cards.concat([{ id: -1, p, a, b, dir }]);
+      const nc = cards.concat([{ id: -1, p, a: pl.a == null ? NEW_A : pl.a, b: pl.b == null ? NEW_B : pl.b, dir }]);
       const gain = evaluate(nc, modeKey, final, q).heur - base + (rnd() - 0.5) * 2 * noise;
-      if (!best || gain > best.gain) best = { edge: e, dir, gain };
+      if (!best || gain > best.gain) best = { a: pl.a, b: pl.b, dir, gain };
     });
   });
   return best;
@@ -572,20 +626,20 @@ function cpuMove(s) {
   const noise = NOISE[pl.diff] != null ? NOISE[pl.diff] : NOISE.normal;
   if (s.phase === 'secret') {
     const b = bestPlacement(pl.cards, pl.secret, s.mode, 0, s.rnd, true, s.quartic);
-    return { secret: true, edge: b.edge, dir: b.dir };
+    return { secret: true, a: b.a, b: b.b, dir: b.dir };
   }
   let best = null;
   s.market.forEach((p, idx) => {
     const b = bestPlacement(pl.cards, p, s.mode, noise, s.rnd, false, s.quartic);
-    if (!best || b.gain > best.gain) best = { index: idx, edge: b.edge, dir: b.dir, gain: b.gain };
+    if (!best || b.gain > best.gain) best = { index: idx, a: b.a, b: b.b, dir: b.dir, gain: b.gain };
   });
   return best;
 }
 
 return {
-  FERMIONS, BOSONS, PARTICLES, BY_ID, MODES, MISSIONS, TAG_LABEL, CKM_PTS, CKM_VAL, YUKAWA_PTS,
-  isDirected, universe, validateVertex, completable, evaluate, candidateEdges, edgeKey, splitEdge,
-  neighbors, nodePos, geometry, relaxLayout, parseNode, buildNodes, newGame, applyPick, applySecret, currentPlayer, cpuMove, bestPlacement, shuffle
+  FERMIONS, BOSONS, PARTICLES, BY_ID, MODES, MISSIONS, TAG_LABEL, CKM_PTS, CKM_VAL, YUKAWA_PTS, LOOP_COUPLINGS, NEW_A, NEW_B, LAYOUT_L,
+  isDirected, universe, validateVertex, completable, evaluate, placements, targetsFor, freeNodes, chordlessCycles, layout, buildNodes,
+  maxDeg, newGame, applyPick, applySecret, currentPlayer, cpuMove, bestPlacement, shuffle
 };
 })();
 if (typeof module !== 'undefined') module.exports = TQ;

@@ -98,11 +98,10 @@ h1 small{display:block;font-family:var(--sans);font-size:12px;font-weight:400;co
 .ghost{opacity:.6}
 .nd{fill:var(--muted);opacity:.7}
 .loop{fill:var(--accent);opacity:.13}
-.cand{cursor:pointer}
-.cand line{stroke:var(--accent);stroke-width:3;stroke-dasharray:3 8;stroke-linecap:round;opacity:.65}
-.cand circle{fill:var(--accent);opacity:.75}
-.cand .hit{stroke:transparent;stroke-width:28;stroke-dasharray:none;opacity:1;pointer-events:stroke}
-.cand.on line{opacity:1;stroke-dasharray:none}
+.nhit{fill:transparent;cursor:pointer}
+.ring{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-dasharray:3 4;opacity:.9}
+.nodeg.selA .ring{stroke-dasharray:none;stroke-width:3.5}
+.nodeg.selB .ring{stroke:var(--warn);stroke-dasharray:none;stroke-width:3.5}
 .badge{cursor:pointer}
 .badge text{font-size:11px;font-weight:700;fill:var(--on-badge)}
 .badge.ok circle{fill:var(--ok)}

@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 const $ = (s, r) => (r || document).querySelector(s);
-const L = 88; // 辺の長さ(SVG単位)
+const L = TQ.LAYOUT_L; // 辺の長さ(SVG単位)
 const T_LABEL = 0.32, T_ARROW = 0.68; // 線上の位置: 名前の丸 / 矢印(頂点バッジと重ならないよう分ける)
 const lerp = (pa, pb, t) => ({ x: pa.x + (pb.x - pa.x) * t, y: pa.y + (pb.y - pa.y) * t });
 
@@ -77,7 +77,7 @@ function bubble(p, x, y, extra) {
 }
 
 /* ---------- 状態 ---------- */
-const ui = { game: null, view: 0, sel: null, edge: null, dir: 1, node: null, busy: false, setup: { mode: 'basic', players: 2, diff: 'normal', quartic: false } };
+const ui = { game: null, view: 0, sel: null, endA: null, endB: null, lay: {}, dir: 1, node: null, busy: false, setup: { mode: 'basic', players: 2, diff: 'normal', quartic: false } };
 
 /* ---------- 画面切り替え ---------- */
 function show(id) { ['setup', 'game'].forEach(x => { $('#' + x).hidden = x !== id; }); }
@@ -91,7 +91,7 @@ function renderSetup() {
     '<div class="field"><div class="lab">モード</div>' + seg('mode', [['basic', '入門(第1世代)'], ['full', 'フル(3世代・全結合)']], s.mode) +
     '<p class="hint">' + TQ.MODES[s.mode].desc + '</p></div>' +
     '<div class="field"><div class="lab">頂点の種類</div>' + seg('quartic', [['0', '3点結合のみ'], ['1', '3点+4点結合']], s.quartic ? '1' : '0') +
-    '<p class="hint">' + (s.quartic ? '1つの頂点に最大4本の線を集められ、WWWW・WWγγ・HHZZ・HHHH などの4点結合が作れます。線は3本の頂点では120°、4本の頂点では90°ずつ開いて描かれます。ループは正方形(4枚)と六角形(6枚)の両方がボーナスになります。' : '蜂の巣格子で遊びます。1つの頂点には3本の線が集まります。') + '</p></div>' +
+    '<p class="hint">' + (s.quartic ? '1つの頂点に最大4本の線を集められ、WWWW・WWγγ・HHZZ・HHHH などの4点結合が作れます。線は3本の頂点では120°、4本の頂点では90°ずつ開いて描かれます。' : '1つの頂点には最大3本の線が集まります。') + '</p></div>' +
     '<div class="field"><div class="lab">遊ぶ人数</div>' + seg('players', [[1, 'ソロ'], [2, 'CPU 1人'], [3, 'CPU 2人'], [4, 'CPU 3人']], s.players === 1 ? 1 : s.players === 2 ? 2 : s.players === 3 ? 3 : 4) +
     '<p class="hint">' + (s.players === 1 ? '3枚のうち1枚を選び、残りは捨てます(全12ラウンド)。' : '場に並んだカードから1枚ずつ選び、自分の図に貼っていきます。') + '</p></div>' +
     (s.players > 1 ? '<div class="field"><div class="lab">CPUの強さ</div>' + seg('diff', [['easy', 'やさしい'], ['normal', 'ふつう'], ['hard', 'つよい']], s.diff) + '</div>' : '');
@@ -102,7 +102,7 @@ function startGame() {
   const players = [{ name: 'あなた', human: true }];
   for (let i = 1; i < s.players; i++) players.push({ name: 'CPU' + i, human: false, diff: s.diff });
   ui.game = TQ.newGame({ mode: s.mode, players, quartic: s.quartic });
-  ui.view = 0; ui.sel = null; ui.edge = null; ui.dir = 1; ui.node = null; ui.busy = false;
+  ui.view = 0; ui.sel = null; ui.endA = null; ui.endB = null; ui.lay = {}; ui.dir = 1; ui.node = null; ui.busy = false;
   show('game'); $('#over').hidden = true;
   render();
   setMsg('場のカードを1枚選んでください。');
@@ -119,7 +119,7 @@ function nextTurn() {
   if (g.phase === 'over') { finish(); return; }
   const pi = TQ.currentPlayer(g);
   if (g.players[pi].human) {
-    ui.busy = false; ui.view = pi; ui.edge = null;
+    ui.busy = false; ui.view = pi; ui.endA = null; ui.endB = null;
     if (g.phase === 'secret') { ui.sel = 'secret'; setMsg('最後に、配りの時に引いた「秘密カード」を図に貼ります。'); }
     else ui.sel = null;
     render(); return;
@@ -129,19 +129,19 @@ function nextTurn() {
     const mv = TQ.cpuMove(g);
     const name = g.players[pi].name;
     let r;
-    if (g.phase === 'secret') r = TQ.applySecret(g, mv.edge, mv.dir);
-    else r = TQ.applyPick(g, mv.index, mv.edge, mv.dir);
+    if (g.phase === 'secret') r = TQ.applySecret(g, mv.a, mv.b, mv.dir);
+    else r = TQ.applyPick(g, mv.index, mv.a, mv.b, mv.dir);
     setMsg(name + ' が ' + r.p.jp + ' を貼りました。');
     nextTurn();
   }, 650);
 }
 function confirmMove() {
-  const g = ui.game; if (!curIsHuman() || !ui.edge || ui.sel == null) return;
+  const g = ui.game; if (!placementReady()) return;
   let r;
-  if (g.phase === 'secret') r = TQ.applySecret(g, ui.edge, ui.dir);
-  else r = TQ.applyPick(g, ui.sel, ui.edge, ui.dir);
+  if (g.phase === 'secret') r = TQ.applySecret(g, ui.endA, ui.endB, ui.dir);
+  else r = TQ.applyPick(g, ui.sel, ui.endA, ui.endB, ui.dir);
   setMsg(r.p.jp + ' を貼りました。');
-  ui.sel = null; ui.edge = null; ui.node = null; ui.dir = 1;
+  ui.sel = null; ui.endA = null; ui.endB = null; ui.node = null; ui.dir = 1;
   nextTurn();
 }
 
@@ -152,6 +152,18 @@ function selectedParticle() {
   const g = ui.game; if (ui.sel == null) return null;
   if (g.phase === 'secret') return g.players[TQ.currentPlayer(g)].secret;
   return g.market[ui.sel] || null;
+}
+
+// 貼る位置が決まっているか(最初の1枚は選ぶだけで決まる。2枚目以降は、つなぐ頂点を1つ選ぶ)
+function placementReady() {
+  const g = ui.game; if (!curIsHuman() || !selectedParticle()) return false;
+  return g.players[TQ.currentPlayer(g)].cards.length === 0 || ui.endA != null;
+}
+// 各プレイヤーの図の座標。カードが増えたときだけ、前回の座標を土台に計算し直す
+function basePos(pi) {
+  const cards = ui.game.players[pi].cards, c = ui.lay[pi];
+  if (!c || c.n !== cards.length) ui.lay[pi] = { n: cards.length, pos: TQ.layout(cards, c && c.pos) };
+  return ui.lay[pi].pos;
 }
 
 function render() {
@@ -191,16 +203,22 @@ function renderBoard() {
   const pl = g.players[ui.view];
   const cards = pl.cards;
   const my = curIsHuman() && ui.view === TQ.currentPlayer(g);
+  const sp = my ? selectedParticle() : null;
   const ev = TQ.evaluate(cards, g.mode, g.phase === 'over', g.quartic);
-  const cand = my && ui.sel != null ? TQ.candidateEdges(cards, g.quartic) : [];
-  const G = TQ.geometry(cards, g.quartic, L);
-  const pc = my && ui.edge && selectedParticle() ? G.cand(ui.edge) : null; // 貼る前のプレビュー位置
-  const P = k => G.P(k) || (pc && k === pc.newKey ? pc.pn : null);
+  const ready = !!(my && sp && placementReady());
+  // 貼る前のプレビュー: 選んだ端点(null は新しい端点)に、選んだカードを加えた図
+  const pcards = ready ? cards.concat([{ id: -1, p: sp, a: ui.endA == null ? TQ.NEW_A : ui.endA, b: ui.endB == null ? TQ.NEW_B : ui.endB, dir: ui.dir }]) : cards;
+  const pev = ready ? TQ.evaluate(pcards, g.mode, false, g.quartic) : ev;
+  const pos = ready ? TQ.layout(pcards, basePos(ui.view)) : basePos(ui.view);
+  const P = k => pos[k];
+
+  // 選べる頂点
+  const picking = !!(my && sp && cards.length);
+  const free = new Set(picking ? TQ.freeNodes(cards, g.quartic) : []);
+  const tg = picking && ui.endA != null ? new Set(TQ.targetsFor(cards, g.quartic, ui.endA)) : free;
 
   // 表示範囲
-  const pts = [];
-  cards.forEach(c => { pts.push(P(c.a), P(c.b)); });
-  cand.forEach(e => { const c = G.cand(e); pts.push(c.pa, c.pb); });
+  const pts = Object.keys(pos).map(k => pos[k]);
   if (!pts.length) pts.push({ x: 0, y: 0 }, { x: L, y: 0 });
   let x0 = Math.min(...pts.map(p => p.x)), x1 = Math.max(...pts.map(p => p.x));
   let y0 = Math.min(...pts.map(p => p.y)), y1 = Math.max(...pts.map(p => p.y));
@@ -215,43 +233,34 @@ function renderBoard() {
 
   let s = '';
   // ループの淡い塗り
-  ev.loops.forEach(r => { s += '<polygon class="loop" points="' + r.map(n => { const p = P(n); return p.x.toFixed(1) + ',' + p.y.toFixed(1); }).join(' ') + '"/>'; });
+  pev.loops.forEach(r => { s += '<polygon class="loop" points="' + r.map(n => { const p = P(n); return p.x.toFixed(1) + ',' + p.y.toFixed(1); }).join(' ') + '"/>'; });
 
-  // 候補辺
-  cand.forEach(e => {
-    const c = G.cand(e), pa = c.pa, pb = c.pb;
-    const on = ui.edge === e;
-    s += '<g class="cand' + (on ? ' on' : '') + '" data-edge="' + e + '"><line x1="' + pa.x.toFixed(1) + '" y1="' + pa.y.toFixed(1) + '" x2="' + pb.x.toFixed(1) + '" y2="' + pb.y.toFixed(1) + '"/>' +
-      '<circle cx="' + ((pa.x + pb.x) / 2).toFixed(1) + '" cy="' + ((pa.y + pb.y) / 2).toFixed(1) + '" r="9"/>' +
-      '<line class="hit" x1="' + pa.x.toFixed(1) + '" y1="' + pa.y.toFixed(1) + '" x2="' + pb.x.toFixed(1) + '" y2="' + pb.y.toFixed(1) + '"/></g>';
-  });
+  // 貼ったカードと、プレビューのカード
+  const drawCard = (c, cls) => {
+    const pa = P(c.a), pb = P(c.b), lp = lerp(pa, pb, T_LABEL);
+    return '<g class="' + cls + '"' + (c.id > 0 ? ' data-cid="' + c.id + '"' : '') + '>' + lineSvg(c.p, pa.x, pa.y, pb.x, pb.y, c.dir) + bubble(c.p, lp.x, lp.y) + '</g>';
+  };
+  cards.forEach(c => { s += drawCard(c, 'card'); });
+  if (ready) s += drawCard(pcards[pcards.length - 1], 'ghost');
 
-  // 貼ったカード
-  cards.forEach(c => {
-    const pa = P(c.a), pb = P(c.b);
-    s += '<g class="card" data-cid="' + c.id + '">' + lineSvg(c.p, pa.x, pa.y, pb.x, pb.y, c.dir) + bubble(c.p, lerp(pa, pb, T_LABEL).x, lerp(pa, pb, T_LABEL).y) + '</g>';
-  });
-
-  // プレビュー
-  const sp = selectedParticle();
-  if (pc) {
-    const pa = pc.pa, pb = pc.pb;
-    s += '<g class="ghost">' + lineSvg(sp, pa.x, pa.y, pb.x, pb.y, ui.dir) + bubble(sp, lerp(pa, pb, T_LABEL).x, lerp(pa, pb, T_LABEL).y) + '</g>';
-  }
-
-  // ノードの状態
-  let pcards = cards;
-  if (my && ui.edge && sp) pcards = cards.concat([{ id: -1, p: sp, a: TQ.splitEdge(ui.edge)[0], b: TQ.splitEdge(ui.edge)[1], dir: ui.dir }]);
-  const pev = pcards === cards ? ev : TQ.evaluate(pcards, g.mode, false, g.quartic);
+  // 頂点の状態と、選択できる頂点
   pev.info.forEach((v, n) => {
-    const p = P(n);
-    if (v.status === 'single') { s += '<circle class="nd" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="3"/>'; return; }
-    let cls = 'badge ', txt = '';
-    if (v.status === 'valid') { cls += 'ok'; txt = '+' + v.pts; }
-    else if (v.status === 'invalid') { cls += 'ng'; txt = '×'; }
-    else if (v.status === 'open') { cls += 'op'; txt = '…'; }
-    else { cls += 'dead'; txt = '!'; }
-    s += '<g class="' + cls + (ui.node === n ? ' pick' : '') + '" data-node="' + n + '"><circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="' + (v.status === 'valid' ? 11 : 9) + '"/><text x="' + p.x.toFixed(1) + '" y="' + (p.y + 4).toFixed(1) + '" text-anchor="middle">' + txt + '</text></g>';
+    const p = P(n), real = ev.info.has(n);
+    const sel = !real ? '' : n === ui.endA ? ' selA' : n === ui.endB ? ' selB' : picking && tg.has(n) ? ' tgt' : '';
+    const x = p.x.toFixed(1), y = p.y.toFixed(1);
+    let g2 = '<g class="nodeg' + sel + '"' + (real ? ' data-node="' + n + '"' : '') + '>';
+    if (real) g2 += '<circle class="nhit" cx="' + x + '" cy="' + y + '" r="18"/>';
+    if (sel) g2 += '<circle class="ring" cx="' + x + '" cy="' + y + '" r="17"/>';
+    if (v.status === 'single') g2 += '<circle class="nd" cx="' + x + '" cy="' + y + '" r="3"/>';
+    else {
+      let cls = 'badge ', txt = '';
+      if (v.status === 'valid') { cls += 'ok'; txt = '+' + v.pts; }
+      else if (v.status === 'invalid') { cls += 'ng'; txt = '×'; }
+      else if (v.status === 'open') { cls += 'op'; txt = '…'; }
+      else { cls += 'dead'; txt = '!'; }
+      g2 += '<g class="' + cls + (ui.node === n ? ' pick' : '') + '"><circle cx="' + x + '" cy="' + y + '" r="' + (v.status === 'valid' ? 11 : 9) + '"/><text x="' + x + '" y="' + (p.y + 4).toFixed(1) + '" text-anchor="middle">' + txt + '</text></g>';
+    }
+    s += g2 + '</g>';
   });
   svg.innerHTML = s;
   $('#viewname').textContent = pl.name + ' の図';
@@ -283,9 +292,9 @@ function renderControls() {
   const g = ui.game, my = curIsHuman();
   const sp = selectedParticle();
   const flip = $('#flip'), ok = $('#ok');
-  flip.hidden = !(my && sp && TQ.isDirected(sp) && ui.edge);
+  flip.hidden = !(my && sp && TQ.isDirected(sp) && placementReady());
   $('#hint').hidden = !(my && sp);
-  ok.disabled = !(my && ui.edge && sp);
+  ok.disabled = !(my && sp && placementReady());
   ok.textContent = g.phase === 'secret' ? '秘密カードを貼る' : 'ここに貼る';
   $('#controls').hidden = !my;
 }
@@ -300,7 +309,7 @@ function finish() {
     const e = r.e;
     const ms = e.missions.map(id => TQ.MISSIONS.find(m => m.id === id).name);
     return '<button class="rrow' + (r.e.total === best ? ' top' : '') + '" data-view="' + r.i + '"><span class="rn">' + r.p.name + '</span><span class="rs">' + e.total + '点</span>' +
-      '<span class="rd">有効 ' + e.validCount + '(' + e.vpts + '点) / 無効 ' + (e.invalid + e.badInc) + ' / ループ ' + e.loops.length + '(+' + e.loopPts + ') / ミッション ' + e.missions.length + '(+' + e.missionPts + ')</span>' +
+      '<span class="rd">有効 ' + e.validCount + '(' + e.vpts + '点) / 無効 ' + (e.invalid + e.badInc) + ' / ループ ' + e.loops.length + '(+' + e.loopPts + ')' + (e.loopCouplings.length ? ' / ループ結合 ' + e.loopCouplings.length + '(+' + e.lcPts + ')' : '') + ' / ミッション ' + e.missions.length + '(+' + e.missionPts + ')</span>' +
       (ms.length ? '<span class="rm">' + ms.join('、') + '</span>' : '') + '</button>';
   }).join('') + '</div>';
   h += '<div class="row"><button id="again" class="btn main">もう一度遊ぶ</button><button id="closeover" class="btn">図を見る</button></div>';
@@ -333,7 +342,7 @@ function renderGuide() {
   const part = TQ.PARTICLES.map(p => '<tr><td><span class="mini ' + colorClass(p) + '">' + p.sym + '</span></td><td>' + p.jp + '</td><td>' + (p.kind === 'W' ? '±1' : CHARGE_TXT(p.Q)) + '</td><td>' + p.mass + '</td></tr>').join('');
   $('#guide-body').innerHTML =
     '<h3>遊び方</h3><ol>' +
-    '<li>場のカードから1枚選び、自分の図に貼ります。図は蜂の巣状の格子で、カード1枚が1本の線です。最初の1枚以外は、すでに貼ったカードにつなげます。</li>' +
+    '<li>場のカードから1枚選び、自分の図に貼ります。カード1枚が1本の線です。最初の1枚以外は、すでに図にある頂点を選んでつなげます。貼るときは、線の両端を「新しい端点」にするか、図にある別の頂点にするかを選べます(2つの頂点を結ぶと輪=ループができます)。</li>' +
     '<li>3本の線が集まる点が「頂点」です。標準模型に存在する結合なら有効で得点、存在しない結合なら−1点。</li>' +
     '<li>電子・クォーク・ニュートリノ・Wには矢印があります。フェルミオンの線は頂点で「入る1本・出る1本」になるように向きを選びます。</li>' +
     '<li>最後に秘密カードを貼り、合計点で競います。</li></ol>' +
@@ -341,14 +350,32 @@ function renderGuide() {
     rows.map(r => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td><td>' + r[3] + '</td></tr>').join('') + '</tbody></table></div>' +
     '<h3>4点結合(「3点+4点結合」モード)</h3><div class="tw"><table><thead><tr><th>頂点</th><th>名前</th><th>点</th><th>条件</th></tr></thead><tbody>' +
     rows4.map(r => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td><td>' + r[3] + '</td></tr>').join('') + '</tbody></table></div>' +
-    '<p class="note">4点モードでは、線の本数に応じて頂点の角度が変わって見えます(3本以下は120°、4本は90°)。標準模型にはフェルミオンを含む4点結合がないので、電子やクォークの線が3本以上集まる頂点は無効です。3本が集まった時点で3点結合として無効でも、あと1本で4点結合になるなら「…」(未完成)になります。</p>' +
+    '<p class="note">頂点の角度は、線の本数に応じて変わって見えます(3本以下は120°、4本は90°)。標準模型にはフェルミオンを含む4点結合がないので、電子やクォークの線が3本以上集まる頂点は無効です。3本が集まった時点で3点結合として無効でも、あと1本で4点結合になるなら「…」(未完成)になります。</p>' +
     '<p class="note">2本だけの未完成の頂点は、あと1本(4点モードでは最大2本)で有効にできるなら0点(…)、どの粒子を足しても有効にならないなら終了時に−1点(!)です。</p>' +
-    '<h3>ボーナス</h3><ul><li><b>ループ</b>:閉じた最小の輪(3点モードは六角形6枚。4点モードは正方形4枚と六角形6枚。六角形の中央に線を足して正方形2つにした形は、正方形として数えます)で、すべての頂点が有効(または完成可能)なら1つにつき +2点。</li>' +
+    '<h3>ボーナス</h3><ul><li><b>ループ</b>:閉じた輪(4〜6枚)で、すべての頂点が有効(または完成可能)なら1つにつき +2点。輪は正多角形の角(正方形90°・五角形108°・六角形120°)で描かれます。</li><li><b>ループ結合</b>:同じフェルミオンの線で作った三角形に、ヒッグスと2本のボソンが付いた形を作ると得点します(H→γγ +6、H→Zγ +6、H→gg +5。輪が電荷を持つフェルミオン、H→gg はクォーク)。ツリーレベルにはない結合なので、頂点としては作れません。</li>' +
     TQ.MISSIONS.map(m => '<li><b>' + m.name + '</b>(+' + m.bonus + '点):' + m.desc + '</li>').join('') + '</ul>' +
     '<h3>CKM行列(Wが世代をまたぐ強さ)</h3><div class="tw"><table class="ckm"><thead><tr><th></th><th>d</th><th>s</th><th>b</th></tr></thead><tbody>' + ckmRows + '</tbody></table></div>' +
     '<h3>粒子一覧</h3><div class="tw"><table><thead><tr><th></th><th>名前</th><th>電荷</th><th>質量</th></tr></thead><tbody>' + part + '</tbody></table></div>' +
     '<h3>このゲームで省いているもの</h3><p class="note">4点結合は「3点+4点結合」モードだけで扱います(フェルミオンを含む4点結合は標準模型の基本結合にありません)。ニュートリノ質量と振動、CP対称性の破れ、色荷の細かい流れ、時間順序は扱いません。ヒッグスのループ結合(γγ・Zγ・gg)は、ツリーレベルの頂点としては扱いません。</p>' +
     '<p class="note">素粒子ファインマン図カードゲーム「Tutti Quantum」(EPFL+ECAL Lab / Helvetiq)に着想を得た非公式の個人用プロトタイプです。得点やルールは原作とは異なります。</p>';
+}
+
+/* ---------- 頂点のタップ ---------- */
+// カードを選んでいるときは、つなぐ頂点(両端)の選択。それ以外は、頂点の判定理由の表示
+function nodeTap(n) {
+  const g = ui.game, my = curIsHuman() && ui.view === TQ.currentPlayer(g), sp = my ? selectedParticle() : null;
+  const cards = g.players[ui.view].cards;
+  if (my && sp && cards.length) {
+    const free = TQ.freeNodes(cards, g.quartic);
+    if (ui.endA == null && free.indexOf(n) >= 0) { ui.endA = n; ui.endB = null; ui.node = null; render(); setMsg('「ここに貼る」で新しい端点に貼ります。別の点線の頂点をタップすると、その頂点と結んで輪を作れます。'); return; }
+    if (ui.endA != null) {
+      if (n === ui.endA) { ui.endA = null; ui.endB = null; render(); setMsg('つなぐ頂点をタップしてください。'); return; }
+      if (n === ui.endB) { ui.endB = null; render(); setMsg('「ここに貼る」で新しい端点に貼ります。'); return; }
+      if (TQ.targetsFor(cards, g.quartic, ui.endA).indexOf(n) >= 0) { ui.endB = n; ui.node = null; render(); setMsg('2つの頂点を結んで輪を作ります。矢印の向きを確認し、「ここに貼る」を押してください。'); return; }
+      if (free.indexOf(n) >= 0) { ui.endA = n; ui.endB = null; render(); return; }
+    }
+  }
+  ui.node = ui.node === n ? null : n; renderInfo(); renderBoard();
 }
 
 /* ---------- イベント ---------- */
@@ -374,21 +401,19 @@ function bind() {
     const pc = t.closest('.pc');
     if (pc && curIsHuman()) {
       const g = ui.game;
-      ui.sel = pc.dataset.idx === 'secret' ? 'secret' : +pc.dataset.idx; ui.edge = null; ui.node = null; ui.dir = 1;
+      ui.sel = pc.dataset.idx === 'secret' ? 'secret' : +pc.dataset.idx; ui.endA = null; ui.endB = null; ui.node = null; ui.dir = 1;
       ui.view = TQ.currentPlayer(g);
       render();
-      setMsg('光っている辺をタップして、貼る場所を選んでください。');
+      setMsg(g.players[ui.view].cards.length ? 'つなぐ頂点をタップしてください(点線の丸が選べる頂点です)。' : '「ここに貼る」を押すと、最初の線を貼ります。');
       return;
     }
-    const cand = t.closest('.cand');
-    if (cand) { ui.edge = cand.dataset.edge; ui.node = null; render(); setMsg(TQ.isDirected(selectedParticle()) ? '矢印の向きを確認し、「ここに貼る」を押してください。' : '「ここに貼る」を押してください。'); return; }
     const nd = t.closest('[data-node]');
-    if (nd) { ui.node = ui.node === nd.dataset.node ? null : nd.dataset.node; renderInfo(); renderBoard(); return; }
+    if (nd) { nodeTap(nd.dataset.node); return; }
     if (t.closest('#hint')) {
       const sp = selectedParticle(); if (!sp || !curIsHuman()) return;
       const g = ui.game, pl = g.players[TQ.currentPlayer(g)];
       const b = TQ.bestPlacement(pl.cards, sp, g.mode, 0, g.rnd, g.phase === 'secret', g.quartic);
-      if (b) { ui.edge = b.edge; ui.dir = b.dir; ui.node = null; render(); setMsg('この位置がいちばん得点が伸びます。「ここに貼る」で確定できます。'); }
+      if (b) { ui.endA = b.a; ui.endB = b.b; ui.dir = b.dir; ui.node = null; render(); setMsg('この位置がいちばん得点が伸びます。「ここに貼る」で確定できます。'); }
       return;
     }
     if (t.closest('#flip')) { ui.dir = -ui.dir; render(); return; }
