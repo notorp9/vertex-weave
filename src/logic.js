@@ -565,6 +565,7 @@ function beginRound(s) {
 }
 
 function currentPlayer(s) {
+  if (s.phase === 'practice') return 0;
   if (s.phase === 'pick') return s.order[s.pickIdx];
   if (s.phase === 'secret') return s.secretIdx;
   return -1;
@@ -600,6 +601,19 @@ function applySecret(s, a, b, dir) {
   if (s.secretIdx >= s.np) s.phase = 'over';
   return { player: pi, p };
 }
+
+/* 練習モード: 好きな粒子を何枚でも選んで貼れる(山札・ラウンド・CPUなし) */
+function newPractice(opts) {
+  return {
+    mode: opts.mode, rnd: Math.random, solo: true, np: 1, practice: true, quartic: !!opts.quartic,
+    R: 0, marketSize: 0, deck: [], market: universe(opts.mode), round: 0, first: 0, order: [0], pickIdx: 0,
+    players: [{ name: 'あなた', human: true, diff: 'normal', cards: [], nextNode: 0, secret: null }],
+    phase: 'practice', secretIdx: 0, nextId: 1, log: []
+  };
+}
+function applyPractice(s, p, a, b, dir) { placeCard(s, 0, p, a, b, dir); return { player: 0, p }; }
+function undoPractice(s) { s.players[0].cards.pop(); }
+function clearPractice(s) { s.players[0].cards.length = 0; s.players[0].nextNode = 0; }
 
 /* ------------------------------------------------------------------ */
 /*  CPU                                                                 */
@@ -639,7 +653,7 @@ function cpuMove(s) {
 return {
   FERMIONS, BOSONS, PARTICLES, BY_ID, MODES, MISSIONS, TAG_LABEL, CKM_PTS, CKM_VAL, YUKAWA_PTS, LOOP_COUPLINGS, NEW_A, NEW_B, LAYOUT_L,
   isDirected, universe, validateVertex, completable, evaluate, placements, targetsFor, freeNodes, chordlessCycles, layout, buildNodes,
-  maxDeg, newGame, applyPick, applySecret, currentPlayer, cpuMove, bestPlacement, shuffle
+  maxDeg, newGame, newPractice, applyPractice, undoPractice, clearPractice, applyPick, applySecret, currentPlayer, cpuMove, bestPlacement, shuffle
 };
 })();
 if (typeof module !== 'undefined') module.exports = TQ;

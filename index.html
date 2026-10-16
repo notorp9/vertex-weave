@@ -112,8 +112,8 @@ h1 small{display:block;font-family:var(--sans);font-size:12px;font-weight:400;co
 .badge.dead text{fill:#2a1e00}
 .badge.pick circle{stroke:var(--ink);stroke-width:2.5}
 
-#controls{grid-area:ctrl;display:flex;gap:8px}
-#controls .btn{flex:1;padding:11px}
+#controls{grid-area:ctrl;display:flex;flex-wrap:wrap;gap:8px}
+#controls .btn{flex:1 1 auto;padding:11px}
 #info{grid-area:info;font-size:13.5px}
 #info p{margin:0 0 6px}
 #info .ih{font-family:var(--serif);font-weight:700;font-size:16px;margin-bottom:4px}
@@ -185,6 +185,8 @@ table.ckm td,table.ckm th{text-align:center}
       <svg id="board" viewBox="0 0 480 360" preserveAspectRatio="xMidYMid meet" role="img" aria-label="ファインマン図の盤面"></svg>
     </div>
     <div id="controls">
+      <button class="btn" id="undo" type="button" hidden>ひとつ戻す</button>
+      <button class="btn" id="clear" type="button" hidden>全部消す</button>
       <button class="btn" id="hint" type="button" hidden>おすすめ</button>
       <button class="btn" id="flip" type="button" hidden>矢印を反転</button>
       <button class="btn main" id="ok" type="button" disabled>ここに貼る</button>
@@ -770,6 +772,7 @@ function beginRound(s) {
 }
 
 function currentPlayer(s) {
+  if (s.phase === 'practice') return 0;
   if (s.phase === 'pick') return s.order[s.pickIdx];
   if (s.phase === 'secret') return s.secretIdx;
   return -1;
@@ -805,6 +808,19 @@ function applySecret(s, a, b, dir) {
   if (s.secretIdx >= s.np) s.phase = 'over';
   return { player: pi, p };
 }
+
+/* 練習モード: 好きな粒子を何枚でも選んで貼れる(山札・ラウンド・CPUなし) */
+function newPractice(opts) {
+  return {
+    mode: opts.mode, rnd: Math.random, solo: true, np: 1, practice: true, quartic: !!opts.quartic,
+    R: 0, marketSize: 0, deck: [], market: universe(opts.mode), round: 0, first: 0, order: [0], pickIdx: 0,
+    players: [{ name: 'あなた', human: true, diff: 'normal', cards: [], nextNode: 0, secret: null }],
+    phase: 'practice', secretIdx: 0, nextId: 1, log: []
+  };
+}
+function applyPractice(s, p, a, b, dir) { placeCard(s, 0, p, a, b, dir); return { player: 0, p }; }
+function undoPractice(s) { s.players[0].cards.pop(); }
+function clearPractice(s) { s.players[0].cards.length = 0; s.players[0].nextNode = 0; }
 
 /* ------------------------------------------------------------------ */
 /*  CPU                                                                 */
@@ -844,7 +860,7 @@ function cpuMove(s) {
 return {
   FERMIONS, BOSONS, PARTICLES, BY_ID, MODES, MISSIONS, TAG_LABEL, CKM_PTS, CKM_VAL, YUKAWA_PTS, LOOP_COUPLINGS, NEW_A, NEW_B, LAYOUT_L,
   isDirected, universe, validateVertex, completable, evaluate, placements, targetsFor, freeNodes, chordlessCycles, layout, buildNodes,
-  maxDeg, newGame, applyPick, applySecret, currentPlayer, cpuMove, bestPlacement, shuffle
+  maxDeg, newGame, newPractice, applyPractice, undoPractice, clearPractice, applyPick, applySecret, currentPlayer, cpuMove, bestPlacement, shuffle
 };
 })();
 if (typeof module !== 'undefined') module.exports = TQ;
@@ -930,7 +946,7 @@ function bubble(p, x, y, extra) {
 }
 
 /* ---------- 状態 ---------- */
-const ui = { game: null, view: 0, sel: null, endA: null, endB: null, lay: {}, dir: 1, node: null, busy: false, setup: { mode: 'basic', players: 2, diff: 'normal', quartic: false } };
+const ui = { game: null, view: 0, sel: null, endA: null, endB: null, lay: {}, dir: 1, node: null, busy: false, setup: { mode: 'basic', players: 2, diff: 'normal', quartic: false, practice: false } };
 
 /* ---------- 画面切り替え ---------- */
 function show(id) { ['setup', 'game'].forEach(x => { $('#' + x).hidden = x !== id; }); }
@@ -941,23 +957,26 @@ function renderSetup() {
   const seg = (name, opts, cur) => '<div class="seg" role="group" data-seg="' + name + '">' + opts.map(o =>
     '<button type="button" class="' + (String(cur) === String(o[0]) ? 'on' : '') + '" data-v="' + o[0] + '">' + o[1] + '</button>').join('') + '</div>';
   $('#setup-body').innerHTML =
+    '<div class="field"><div class="lab">遊び方</div>' + seg('kind', [['0', 'ゲーム'], ['1', '練習モード']], s.practice ? '1' : '0') +
+    '<p class="hint">' + (s.practice ? '好きな粒子を何枚でも選んで、図に貼って試せます。点数はその場で確認でき、1つ戻す・全部消すもできます。' : '場に並んだカードから選んで、得点を競います。') + '</p></div>' +
     '<div class="field"><div class="lab">モード</div>' + seg('mode', [['basic', '入門(第1世代)'], ['full', 'フル(3世代・全結合)']], s.mode) +
     '<p class="hint">' + TQ.MODES[s.mode].desc + '</p></div>' +
     '<div class="field"><div class="lab">頂点の種類</div>' + seg('quartic', [['0', '3点結合のみ'], ['1', '3点+4点結合']], s.quartic ? '1' : '0') +
     '<p class="hint">' + (s.quartic ? '1つの頂点に最大4本の線を集められ、WWWW・WWγγ・HHZZ・HHHH などの4点結合が作れます。線は3本の頂点では120°、4本の頂点では90°ずつ開いて描かれます。' : '1つの頂点には最大3本の線が集まります。') + '</p></div>' +
-    '<div class="field"><div class="lab">遊ぶ人数</div>' + seg('players', [[1, 'ソロ'], [2, 'CPU 1人'], [3, 'CPU 2人'], [4, 'CPU 3人']], s.players === 1 ? 1 : s.players === 2 ? 2 : s.players === 3 ? 3 : 4) +
-    '<p class="hint">' + (s.players === 1 ? '3枚のうち1枚を選び、残りは捨てます(全12ラウンド)。' : '場に並んだカードから1枚ずつ選び、自分の図に貼っていきます。') + '</p></div>' +
-    (s.players > 1 ? '<div class="field"><div class="lab">CPUの強さ</div>' + seg('diff', [['easy', 'やさしい'], ['normal', 'ふつう'], ['hard', 'つよい']], s.diff) + '</div>' : '');
+    (s.practice ? '' : '<div class="field"><div class="lab">遊ぶ人数</div>' + seg('players', [[1, 'ソロ'], [2, 'CPU 1人'], [3, 'CPU 2人'], [4, 'CPU 3人']], s.players === 1 ? 1 : s.players === 2 ? 2 : s.players === 3 ? 3 : 4) +
+    '<p class="hint">' + (s.players === 1 ? '3枚のうち1枚を選び、残りは捨てます(全12ラウンド)。' : '場に並んだカードから1枚ずつ選び、自分の図に貼っていきます。') + '</p></div>') +
+    (!s.practice && s.players > 1 ? '<div class="field"><div class="lab">CPUの強さ</div>' + seg('diff', [['easy', 'やさしい'], ['normal', 'ふつう'], ['hard', 'つよい']], s.diff) + '</div>' : '');
 }
 
 function startGame() {
   const s = ui.setup;
   const players = [{ name: 'あなた', human: true }];
   for (let i = 1; i < s.players; i++) players.push({ name: 'CPU' + i, human: false, diff: s.diff });
-  ui.game = TQ.newGame({ mode: s.mode, players, quartic: s.quartic });
+  ui.game = s.practice ? TQ.newPractice({ mode: s.mode, quartic: s.quartic }) : TQ.newGame({ mode: s.mode, players, quartic: s.quartic });
   ui.view = 0; ui.sel = null; ui.endA = null; ui.endB = null; ui.lay = {}; ui.dir = 1; ui.node = null; ui.busy = false;
   show('game'); $('#over').hidden = true;
   render();
+  if (s.practice) { setMsg('好きなカードを選んで、図に貼ってみましょう。'); return; }
   setMsg('場のカードを1枚選んでください。');
   nextTurn();
 }
@@ -991,6 +1010,12 @@ function nextTurn() {
 function confirmMove() {
   const g = ui.game; if (!placementReady()) return;
   let r;
+  if (g.practice) {
+    r = TQ.applyPractice(g, g.market[ui.sel], ui.endA, ui.endB, ui.dir);
+    ui.endA = null; ui.endB = null; ui.node = null; // 同じカードを選んだまま、続けて貼れる
+    render(); setMsg(r.p.jp + ' を貼りました。続けて貼る場所を選ぶか、別のカードを選んでください。');
+    return;
+  }
   if (g.phase === 'secret') r = TQ.applySecret(g, ui.endA, ui.endB, ui.dir);
   else r = TQ.applyPick(g, ui.sel, ui.endA, ui.endB, ui.dir);
   setMsg(r.p.jp + ' を貼りました。');
@@ -1027,8 +1052,8 @@ function render() {
 function renderBar() {
   const g = ui.game;
   const cur = TQ.currentPlayer(g);
-  $('#round').textContent = g.phase === 'pick' ? ('ラウンド ' + g.round + ' / ' + g.R) : g.phase === 'secret' ? '最終配置' : '終了';
-  $('#deck').textContent = '山札 ' + g.deck.length;
+  $('#round').textContent = g.practice ? '練習モード' : g.phase === 'pick' ? ('ラウンド ' + g.round + ' / ' + g.R) : g.phase === 'secret' ? '最終配置' : '終了';
+  $('#deck').textContent = g.practice ? '' : '山札 ' + g.deck.length;
   $('#chips').innerHTML = g.players.map((p, i) => {
     const e = TQ.evaluate(p.cards, g.mode, g.phase === 'over', g.quartic);
     return '<button class="chip' + (i === ui.view ? ' view' : '') + (i === cur ? ' turn' : '') + '" data-view="' + i + '"><span class="nm">' + p.name + '</span><span class="sc">' + e.total + '</span><span class="ct">' + p.cards.length + '枚</span></button>';
@@ -1047,6 +1072,10 @@ function renderMarket() {
     return;
   }
   if (g.phase === 'over') { box.innerHTML = ''; return; }
+  if (g.practice) {
+    box.innerHTML = '<div class="mlab">好きなカードを選べます(何枚でも使えます)</div>' + g.market.map((p, i) => cardHtml(p, i, ui.sel === i, false)).join('');
+    return;
+  }
   const my = curIsHuman();
   box.innerHTML = '<div class="mlab">場のカード</div>' + g.market.map((p, i) => cardHtml(p, i, my && ui.sel === i, !my)).join('');
 }
@@ -1138,6 +1167,13 @@ function renderInfo() {
   } else {
     h += '<p class="muted">頂点の ✓ 数字・× ・… ・! をタップすると、その頂点の判定理由が見られます。</p>';
   }
+  if (g.practice) {
+    const e = TQ.evaluate(g.players[0].cards, g.mode, false, g.quartic);
+    const ms = e.missions.map(id => TQ.MISSIONS.find(m => m.id === id).name);
+    h += '<p class="muted">合計 ' + e.total + '点 / 有効 ' + e.validCount + '(' + e.vpts + '点) / 無効 ' + e.invalid + ' / 未完成で行き止まり ' + e.badInc +
+      ' / ループ ' + e.loops.length + '(+' + e.loopPts + ')' + (e.loopCouplings.length ? ' / ループ結合 ' + e.loopCouplings.map(l => l.tag).join('・') + '(+' + e.lcPts + ')' : '') +
+      ' / ミッション ' + e.missions.length + '(+' + e.missionPts + ')' + (ms.length ? ':' + ms.join('、') : '') + '</p>';
+  }
   box.innerHTML = h;
 }
 
@@ -1149,6 +1185,8 @@ function renderControls() {
   $('#hint').hidden = !(my && sp);
   ok.disabled = !(my && sp && placementReady());
   ok.textContent = g.phase === 'secret' ? '秘密カードを貼る' : 'ここに貼る';
+  $('#undo').hidden = $('#clear').hidden = !g.practice;
+  $('#undo').disabled = $('#clear').disabled = !g.practice || !g.players[0].cards.length;
   $('#controls').hidden = !my;
 }
 
@@ -1238,7 +1276,7 @@ function bind() {
     const seg = t.closest('.seg button');
     if (seg) {
       const name = seg.parentNode.dataset.seg, v = seg.dataset.v;
-      if (name === 'mode') ui.setup.mode = v; else if (name === 'players') ui.setup.players = +v; else if (name === 'quartic') ui.setup.quartic = v === '1'; else ui.setup.diff = v;
+      if (name === 'mode') ui.setup.mode = v; else if (name === 'players') ui.setup.players = +v; else if (name === 'quartic') ui.setup.quartic = v === '1'; else if (name === 'kind') ui.setup.practice = v === '1'; else ui.setup.diff = v;
       renderSetup(); return;
     }
     if (t.closest('#start')) { startGame(); return; }
@@ -1269,6 +1307,8 @@ function bind() {
       if (b) { ui.endA = b.a; ui.endB = b.b; ui.dir = b.dir; ui.node = null; render(); setMsg('この位置がいちばん得点が伸びます。「ここに貼る」で確定できます。'); }
       return;
     }
+    if (t.closest('#undo')) { TQ.undoPractice(ui.game); ui.endA = null; ui.endB = null; ui.node = null; render(); setMsg('ひとつ戻しました。'); return; }
+    if (t.closest('#clear')) { if (confirm('図をすべて消しますか?')) { TQ.clearPractice(ui.game); ui.lay = {}; ui.endA = null; ui.endB = null; ui.node = null; render(); setMsg('図を消しました。'); } return; }
     if (t.closest('#flip')) { ui.dir = -ui.dir; render(); return; }
     if (t.closest('#ok')) { confirmMove(); return; }
   });

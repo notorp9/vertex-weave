@@ -112,8 +112,8 @@ h1 small{display:block;font-family:var(--sans);font-size:12px;font-weight:400;co
 .badge.dead text{fill:#2a1e00}
 .badge.pick circle{stroke:var(--ink);stroke-width:2.5}
 
-#controls{grid-area:ctrl;display:flex;gap:8px}
-#controls .btn{flex:1;padding:11px}
+#controls{grid-area:ctrl;display:flex;flex-wrap:wrap;gap:8px}
+#controls .btn{flex:1 1 auto;padding:11px}
 #info{grid-area:info;font-size:13.5px}
 #info p{margin:0 0 6px}
 #info .ih{font-family:var(--serif);font-weight:700;font-size:16px;margin-bottom:4px}
@@ -185,6 +185,8 @@ table.ckm td,table.ckm th{text-align:center}
       <svg id="board" viewBox="0 0 480 360" preserveAspectRatio="xMidYMid meet" role="img" aria-label="ファインマン図の盤面"></svg>
     </div>
     <div id="controls">
+      <button class="btn" id="undo" type="button" hidden>ひとつ戻す</button>
+      <button class="btn" id="clear" type="button" hidden>全部消す</button>
       <button class="btn" id="hint" type="button" hidden>おすすめ</button>
       <button class="btn" id="flip" type="button" hidden>矢印を反転</button>
       <button class="btn main" id="ok" type="button" disabled>ここに貼る</button>
